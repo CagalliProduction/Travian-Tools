@@ -29,7 +29,7 @@
 *, *::before, *::after { box-sizing: inherit; }
 body { margin: 0; background: var(--bg); color: var(--tx); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 main { max-width: 960px; margin: 0 auto; padding: 20px 14px 40px; }
-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 2px solid var(--bd); padding-bottom: 10px; margin-bottom: 8px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 2px solid var(--bd); padding-bottom: 10px; margin-bottom: 8px; flex-wrap: wrap; }
 h1 { font-size: 24px; margin: 0; font-weight: 700; }
 h2 { font-size: 17px; margin: 0; font-weight: 600; }
 h3 { font-size: 13px; margin: 22px 0 10px; color: var(--ac); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -151,6 +151,16 @@ details.cmp { margin-top: 14px; }
 .stats div { background: var(--in); border: 1px solid var(--bd); border-radius: 6px; padding: 8px 10px; font-size: 11.5px; color: var(--mu); }
 .stats b { display: block; font-size: 15px; color: var(--tx); font-variant-numeric: tabular-nums; }
 
+/* simple view */
+.simple-only { display: none !important; }
+body.simple .simple-only { display: inline-flex !important; }
+body.simple .full { display: none !important; }
+body.simple:not(.sm-open) tr.smrow { display: none; }
+body.simple main { max-width: 640px; }
+body.simple .card { padding: 14px; margin: 12px 0; }
+body.simple input, body.simple select { font-size: 16px; padding: 9px 10px; }
+body.simple h1 { font-size: 20px; }
+
 @media (max-width: 560px) { .card { padding: 14px; } h1 { font-size: 20px; } .rep-body { padding: 12px; } }
 @media print { button, .imp, a.olink { display: none !important; } .card { box-shadow: none; } }
 </style>
@@ -159,34 +169,38 @@ details.cmp { margin-top: 14px; }
 <main>
   <header>
     <h1>Travian Oasis Raid Optimizer</h1>
-    <button class="ghost small" data-act="theme" id="themeBtn" title="Switch theme">🌓 Auto</button>
+    <div class="row" style="margin:0;gap:8px">
+      <button class="ghost small" data-act="simple" id="simpleBtn">📱 Simple view</button>
+      <button class="ghost small" data-act="theme" id="themeBtn" title="Switch theme">🌓 Auto</button>
+    </div>
   </header>
-  <p class="mu">Enter your troops and the oasis animals. The page finds the force with the highest net profit (animal bounty minus training cost of troops lost), then the smallest force within your tolerance.</p>
+  <p class="mu full">Enter your troops and the oasis animals. The page finds the force with the highest net profit (animal bounty minus training cost of troops lost), then the smallest force within your tolerance.</p>
 
   <section class="card">
     <div class="card-head"><h2>1. My Available Troops</h2>
       <div class="row" style="margin:0"><label>Tribe <select id="tribe"></select></label><button class="ghost small" data-act="clr-troops">Clear</button></div></div>
-    <div class="row vrow">
+    <div class="row vrow full">
       <label>🏠 Starting village <select id="vil"></select></label>
       <label>Tournament Square <input type="number" inputmode="numeric" id="ts" min="0" max="20" style="width:60px" placeholder="0"></label>
       <button class="ghost small" data-act="add-vil">＋ Add</button>
       <button class="ghost small" data-act="del-vil" id="delVil">Remove</button>
     </div>
     <div id="troops"></div>
+    <button class="ghost small simple-only" data-act="smithy" id="smBtn" style="margin-top:8px"></button>
   </section>
 
   <section class="card">
     <div class="card-head"><h2>2. Oasis</h2>
-      <div class="row" style="margin:0"><button class="ghost small" data-act="save-cur" id="saveCur">＋ Save</button><button class="ghost small" data-act="clr-an">Clear</button></div></div>
+      <div class="row" style="margin:0"><button class="ghost small" data-act="save-as" title="Name and save this oasis setup">💾 Save as…</button><button class="ghost small" data-act="clr-an">Clear</button></div></div>
     <div class="imp">
       <textarea id="imp" placeholder="📋 Open the oasis in the game, press Ctrl+A then Ctrl+C, and paste here (or anywhere on this page)."></textarea>
       <p id="impMsg"></p>
     </div>
-    <div class="chips" id="olist"></div>
-    <div id="curO"></div>
+    <div class="chips full" id="olist"></div>
+    <div class="full" id="curO"></div>
     <div class="animals" id="oasis"></div>
-    <p class="mu" id="osum"></p>
-    <details class="cmp" id="cmpBox">
+    <p class="mu full" id="osum"></p>
+    <details class="cmp full" id="cmpBox">
       <summary>📊 Compare saved oases (<span id="cmpN">0</span>)</summary>
       <div id="cmp"></div>
     </details>
@@ -194,16 +208,16 @@ details.cmp { margin-top: 14px; }
 
   <section class="card">
     <div class="card-head"><h2>3. Recommendation</h2></div>
-    <div class="row">
+    <div class="row full">
       <label>Attack type <select id="mode"><option value="raid">Raid</option><option value="attack">Normal attack</option></select></label>
       <label>Tolerance <input type="number" inputmode="decimal" id="tol" min="0" max="50" style="width:60px"> %</label>
       <label>Smaller force by <select id="meas"><option value="units">unit count</option><option value="upkeep">crop upkeep</option><option value="value">training value</option></select></label>
     </div>
-    <p class="mu" style="margin-top:0">Tolerance: how much net profit you give up to send fewer troops. 0 = maximum profit. Travel time is shown for information only and never affects the recommendation.</p>
+    <p class="mu full" style="margin-top:0">Tolerance: how much net profit you give up to send fewer troops. 0 = maximum profit. Travel time is shown for information only and never affects the recommendation.</p>
     <div id="res"></div>
   </section>
 
-  <section class="card">
+  <section class="card full">
     <div class="card-head"><h2>4. Simulator Check</h2>
       <div class="row" style="margin:0"><button class="ghost small" data-act="use">Use recommended</button><button class="ghost small" data-act="clr-sim">Clear</button></div></div>
     <p class="mu" style="margin-top:0">Enter an exact force and compare the report with the in-game combat simulator (uses the animals, Smithy levels, attack type and base defence above).</p>
@@ -211,7 +225,7 @@ details.cmp { margin-top: 14px; }
     <div id="sim"></div>
   </section>
 
-  <section class="card">
+  <section class="card full">
     <details>
       <summary>⚙️ Settings: Server, Units, Bounty & Base Defence</summary>
       <div class="row">
@@ -250,7 +264,7 @@ const EXACT=100000; // brute-force every combination up to this many
 const KEY="travian-oasis-opt-v2",$=id=>document.getElementById(id),f=x=>Math.round(x).toLocaleString();
 const esc=s=>String(s).replace(/[&<>"']/g,c=>"&#"+c.charCodeAt(0)+";");
 const sg=v=>"<span class="+(v>=0?"pos":"neg")+">"+(v>=0?"+":"-")+f(Math.abs(v))+"</span>";
-const fresh=()=>({tribe:"Teutons",m:{},n:{},s:{},cost:{},spd:{},an:AN.map(()=>0),val:AN.map(a=>a[3]),tol:2,mode:"raid",meas:"units",base:10,theme:"auto",oases:[],cur:null,villages:[],vil:null,speed:1,msize:401,server:"https://ts6.x1.international.travian.com"});
+const fresh=()=>({tribe:"Teutons",m:{},n:{},s:{},cost:{},spd:{},an:AN.map(()=>0),val:AN.map(a=>a[3]),tol:2,mode:"raid",meas:"units",base:10,theme:"auto",oases:[],cur:null,villages:[],vil:null,speed:1,msize:401,server:"https://ts6.x1.international.travian.com",simple:false,smOpen:false});
 let S=fresh();try{S=Object.assign(S,JSON.parse(localStorage.getItem(KEY))||{})}catch(e){}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const get=(o,d)=>o[S.tribe]||(o[S.tribe]=d());
@@ -376,7 +390,9 @@ function parseOasis(txt){
   const p=t.match(/^[ \t]*([^\n]+?)[ \t]*\n[ \t]*Population:/mi);
   return{x:+c[1],y:+c[2],an,bonus,dist:d?+d[1].replace(",","."):null,villages,activeName:p?p[1].trim():null};
 }
-const lab=o=>o.name?esc(o.name):"("+o.x+"|"+o.y+")";
+const coords=o=>o.x!=null?"("+o.x+"|"+o.y+")":"";
+const lab=o=>o.name?esc(o.name):coords(o);                                   // short label
+const labFull=o=>o.name?esc(o.name)+(o.x!=null?" <span class=mu>"+coords(o)+"</span>":""):coords(o); // name + coordinates
 const vlab=v=>esc(v.name)+" ("+v.x+"|"+v.y+")";
 const anSum=an=>an.map((n,i)=>n?EMO[i]+n:"").filter(Boolean).join(" ")||"empty";
 const age=t=>{if(!t)return"";const m=Math.round((Date.now()-t)/60000);return m<1?"now":m<60?m+"m":m<1440?Math.round(m/60)+"h":Math.round(m/1440)+"d"};
@@ -401,21 +417,36 @@ function tryImport(txt,quiet){
   return true;
 }
 
+// name and save the current animals as an oasis setup
+function saveAs(){
+  if(!S.an.some(x=>x>0)){setMsg("Enter the oasis animals first.",0);return}
+  const o=curO(),def=o?(o.name||(o.x!=null?o.x+"|"+o.y:"")):"";
+  const nm=prompt("Name for this oasis setup\n(a name, or coordinates like -164|184):",def);if(nm==null)return;
+  const s=nm.trim();if(!s)return;
+  const c=s.replace(/[\u2212\u2013]/g,"-").match(/^\s*\(?\s*(-?\d+)\s*\|\s*(-?\d+)\s*\)?\s*$/);
+  let e;
+  if(c){const id=c[1]+"|"+c[2];e=S.oases.find(z=>z.id==id)||{id,x:+c[1],y:+c[2],bonus:"",dist:null}}
+  else if(o&&o.x!=null){e=o;e.name=s}                                   // name the loaded oasis, keep its coordinates
+  else{e=S.oases.find(z=>z.x==null&&z.name==s)||{id:"n:"+Date.now(),name:s,bonus:"",dist:null}}
+  e.an=S.an.slice();e.t=Date.now();
+  S.oases=S.oases.filter(z=>z!==e&&z.id!=e.id);S.oases.unshift(e);S.cur=e.id;save();refresh();
+  setMsg("✓ Saved "+lab(e)+": "+anSum(e.an),1);
+}
+
 function vilUI(){
   $("vil").innerHTML="<option value=''>— not set —</option>"+S.villages.map(v=>"<option value='"+v.id+"'"+(v.id==S.vil?" selected":"")+">"+vlab(v)+"</option>").join("");
   const v=curV();$("ts").value=v&&v.ts?v.ts:"";$("ts").disabled=!v;$("delVil").style.display=v?"":"none";
 }
 
 function oasesUI(){
-  $("olist").innerHTML=S.oases.length?"<span class=mu>Saved:</span>"+S.oases.map(o=>"<span class='chipw"+(o.id==S.cur?" on":"")+"'><button class=chip data-act=load data-id='"+esc(o.id)+"' title='Load this oasis'><b>"+lab(o)+"</b> "+anSum(o.an)+"<span class=age>· "+age(o.t)+"</span></button>"+oLink(o)+"<button class=chip-x data-act=del data-id='"+esc(o.id)+"' title='Remove'>×</button></span>").join(""):"";
+  $("olist").innerHTML=S.oases.length?"<span class=mu>Saved:</span>"+S.oases.map(o=>"<span class='chipw"+(o.id==S.cur?" on":"")+"'><button class=chip data-act=load data-id='"+esc(o.id)+"' title='"+(o.name&&o.x!=null?"Load "+coords(o):"Load this oasis")+"'><b>"+lab(o)+"</b> "+anSum(o.an)+"<span class=age>· "+age(o.t)+"</span></button>"+oLink(o)+"<button class=chip-x data-act=del data-id='"+esc(o.id)+"' title='Remove'>×</button></span>").join(""):"";
   const o=curO(),v=curV(),d=oDist(o),lk=oLink(o,"Open in game ↗");
-  $("curO").innerHTML=o?"<div class=cur>📍 <b>"+lab(o)+"</b>"+(o.bonus?" · "+o.bonus:"")+(d!=null?" · "+fd(d)+" fields"+(v&&o.x!=null?" from "+esc(v.name):""):"")+" · data from "+ago(o.t)+(lk?" · "+lk:"")+"</div>":"";
-  $("saveCur").style.display=!o&&S.an.some(x=>x>0)?"":"none";
+  $("curO").innerHTML=o?"<div class=cur>📍 <b>"+labFull(o)+"</b>"+(o.bonus?" · "+o.bonus:"")+(d!=null?" · "+fd(d)+" fields"+(v&&o.x!=null?" from "+esc(v.name):""):"")+" · data from "+ago(o.t)+(lk?" · "+lk:"")+"</div>":"";
   $("cmpN").textContent=S.oases.length;
 }
 
 function compare(){
-  const box=$("cmpBox"),el=$("cmp");if(!box.open)return;
+  const box=$("cmpBox"),el=$("cmp");if(!box.open||S.simple)return;
   const av=nArr(),U=TR[S.tribe],v=curV();
   if(!S.oases.length){el.innerHTML="<p class=mu>No saved oases yet. Paste an oasis page above to save one.</p>";return}
   if(!av.some(x=>x>0)){el.innerHTML="<p class=mu>Enter your available troops in section 1 to compare.</p>";return}
@@ -424,7 +455,7 @@ function compare(){
   rows.sort((p,q)=>(q.r?q.r.net:-1e9)-(p.r?p.r.net:-1e9));
   el.innerHTML="<p class=mu style='margin-top:0'>Ranked by best net profit with your current troops, tolerance and attack type ("+MODES[S.mode].toLowerCase()+"). "+(v?"Distances from <b>"+vlab(v)+"</b>.":"Set a starting village in section 1 for exact distances.")+" Time is one way, set by the slowest unit sent.</p><div class=w><table><tr><th>Oasis</th><th>Animals</th><th>Dist</th><th>Send</th><th>⏱ One way</th><th>Dead</th><th>Net</th><th></th></tr>"+
     rows.map(({o,b,r})=>{const d=oDist(o),tt=r?travel(b,d):null,lk=oLink(o);
-      return "<tr"+(o.id==S.cur?" style='background:var(--ac-soft)'":"")+"><td><b>"+lab(o)+"</b>"+(lk?" "+lk:"")+"<small>"+(o.bonus?o.bonus+" · ":"")+ago(o.t)+"</small></td><td>"+anSum(o.an)+"</td><td>"+fd(d)+"</td>"+
+      return "<tr"+(o.id==S.cur?" style='background:var(--ac-soft)'":"")+"><td><b>"+lab(o)+"</b>"+(lk?" "+lk:"")+"<small>"+(o.name&&o.x!=null?coords(o)+" · ":"")+(o.bonus?o.bonus+" · ":"")+ago(o.t)+"</small></td><td>"+anSum(o.an)+"</td><td>"+fd(d)+"</td>"+
       (r?"<td>"+U.map((u,i)=>b[i]?b[i]+" "+ab(u[0]):"").filter(Boolean).join(" · ")+"</td><td>"+(tt?fmtT(tt.sec):"–")+"</td><td>"+(U.map((u,i)=>r.dead[i]?r.dead[i]+" "+ab(u[0]):"").filter(Boolean).join(" · ")||"none")+"</td><td>"+sg(r.net)+"</td>"
         :"<td colspan=4 class=neg style='text-align:left'>Not profitable</td>")+
       "<td><button class='ghost small' data-act=load data-id='"+esc(o.id)+"'>Load</button></td></tr>"}).join("")+"</table></div>";
@@ -452,18 +483,25 @@ function applyTheme(){
   if(t=="auto")document.documentElement.removeAttribute("data-theme");else document.documentElement.dataset.theme=t;
   $("themeBtn").textContent=t=="auto"?"🌓 Auto":t=="light"?"☀️ Light":"🌙 Dark";
 }
+function applyView(){
+  document.body.classList.toggle("simple",!!S.simple);
+  document.body.classList.toggle("sm-open",!!S.smOpen);
+  $("simpleBtn").textContent=S.simple?"🖥️ Full view":"📱 Simple view";
+  smUI();
+}
+function smUI(){const set=sArr().some(x=>x>0);$("smBtn").textContent=(S.smOpen?"▴ Hide Smithy levels":"🔨 Smithy levels ▾")+(set?" · set":"")}
 
 function build(){
   $("tribe").value=S.tribe;$("tol").value=S.tol;$("mode").value=S.mode;$("meas").value=S.meas;$("base").value=S.base;$("speed").value=S.speed;$("msize").value=S.msize;$("server").value=S.server||"";
   const U=TR[S.tribe],n=nArr(),s=sArr(),c=cArr(),m=mArr(),sp=spdArr(),H=U.map(uh);
   $("troops").innerHTML="<div class=w><table class=bar><tr><th></th>"+H.join("")+"</tr>"+
     "<tr><td>Available</td>"+U.map((u,i)=>"<td>"+inp("n",i,n[i])+"</td>").join("")+"</tr>"+
-    "<tr><td>Smithy</td>"+U.map((u,i)=>"<td>"+inp("s",i,s[i],"max=20")+"</td>").join("")+"</tr></table></div>";
+    "<tr class=smrow><td>Smithy</td>"+U.map((u,i)=>"<td>"+inp("s",i,s[i],"max=20")+"</td>").join("")+"</tr></table></div>";
   $("manual").innerHTML="<div class=w><table class=bar><tr><th></th>"+H.join("")+"</tr><tr><td>Send</td>"+U.map((u,i)=>"<td>"+inp("m",i,m[i])+"</td>").join("")+"</tr></table></div>";
   $("oasis").innerHTML=AN.map((a,i)=>"<label class='"+(S.an[i]?"has":"")+"'>"+EMO[i]+" "+a[0]+inp("an",i,S.an[i])+"</label>").join("");
   $("costs").innerHTML="<table><tr><th>Unit</th>"+RES.map(x=>"<th>"+x[0]+" "+x[1]+"</th>").join("")+"<th>🏃 Speed</th></tr>"+U.map((u,i)=>"<tr><td>"+esc(u[0])+"</td>"+c[i].map((v,j)=>"<td>"+inp("c",i,v,"data-j="+j)+"</td>").join("")+"<td>"+inp("sp",i,sp[i])+"</td></tr>").join("")+"</table>";
   $("vals").innerHTML="<table><tr><th>Bounty</th>"+AN.map(a=>"<th>"+a[0]+"</th>").join("")+"</tr><tr><td>Resources</td>"+AN.map((a,i)=>"<td>"+inp("v",i,S.val[i])+"</td>").join("")+"</tr></table>";
-  vilUI();applyTheme();
+  vilUI();applyTheme();applyView();
 }
 
 function oasisSum(){
@@ -484,17 +522,19 @@ function show(){
   const U=TR[S.tribe],av=nArr(),el=$("res");lastBest=null;
   if(!av.some(x=>x>0)||!S.an.some(x=>x>0)){el.innerHTML="<p class=mu>Enter your available troops and the oasis animals above to see the recommended force.</p>";return}
   const C=ctx(),best=optimize(av,S.tol,C,S.meas),r=battle(best,C),all=battle(av,C);
-  const oM=S.mode=="raid"?"attack":"raid",C2=ctx(oM),b2=optimize(av,S.tol,C2,S.meas),r2=battle(b2,C2);
   const word=S.mode=="raid"?"raid":"attack",o=curO(),d=oDist(o);
-  const alt="<p class=mu>With a "+MODES[oM].toLowerCase()+" instead: "+(r2?"best net "+sg(r2.net)+" sending "+f(sum(b2))+" troops"+(r2.net>(r?r.net:0)?" — <b>more profitable, consider switching</b>":"")+".":"no profitable force.")+"</p>";
+  // the comparison with the other attack type is skipped in simple view (not shown there)
+  let alt="";
+  if(!S.simple){const oM=S.mode=="raid"?"attack":"raid",C2=ctx(oM),b2=optimize(av,S.tol,C2,S.meas),r2=battle(b2,C2);
+    alt="<p class=mu>With a "+MODES[oM].toLowerCase()+" instead: "+(r2?"best net "+sg(r2.net)+" sending "+f(sum(b2))+" troops"+(r2.net>(r?r.net:0)?" — <b>more profitable, consider switching</b>":"")+".":"no profitable force.")+"</p>"}
 
   if(!r){
-    el.innerHTML="<div class='verdict bad'>❌ <b>Do not "+word+(o?" "+lab(o):"")+".</b> Every force you could send loses more resources than it gains.</div>"+alt+(all?"<p class=mu>If sending everything: gain "+f(all.gain)+", loss "+f(all.lostT)+", net "+sg(all.net)+".</p>":"");
+    el.innerHTML="<div class='verdict bad'>❌ <b>Do not "+word+(o?" "+lab(o):"")+".</b> Every force you could send loses more resources than it gains.</div><div class=full>"+alt+(all?"<p class=mu>If sending everything: gain "+f(all.gain)+", loss "+f(all.lostT)+", net "+sg(all.net)+".</p>":"")+"</div>";
     return;
   }
   lastBest=best.slice();
   const sent=sum(best),H=U.map(uh),aTot=sum(S.an),aKill=sum(r.killed),tt=travel(best,d);
-  const tline=tt?"⏱ "+fmtT(tt.sec)+" one way · back in "+fmtT(tt.sec*2)+" · "+fd(d)+" fields · slowest: "+esc(tt.who)+" ("+tt.sp+" fields/h)":(d==null?"Set a starting village or import the oasis to see travel time.":"");
+  const tline=tt?"⏱ "+fmtT(tt.sec)+" one way · back in "+fmtT(tt.sec*2)+" · "+fd(d)+" fields · slowest: "+esc(tt.who)+" ("+tt.sp+" fields/h)":"";
   lastText=MODES[S.mode]+(o?" "+(o.name||"("+o.x+"|"+o.y+")"):"")+": "+U.map((u,i)=>best[i]?u[0]+" "+best[i]:"").filter(Boolean).join(", ")+" | expected dead: "+(U.map((u,i)=>r.dead[i]?u[0]+" "+r.dead[i]:"").filter(Boolean).join(", ")||"none")+" | net "+(r.net>=0?"+":"-")+f(Math.abs(r.net))+(tt?" | "+fmtT(tt.sec)+" one way":"")+(oUrl(o)?" | "+oUrl(o):"");
   const aIdx=AN.map((a,i)=>i).filter(i=>S.an[i]);
 
@@ -502,10 +542,11 @@ function show(){
   "<div class='verdict "+(r.win?"ok":"bad")+"'>"+(r.win?"✅":"⚠️")+" <b>"+MODES[S.mode]+(o?" "+lab(o):"")+" with "+f(sent)+" troops</b> → net "+sg(r.net)+(tline?"<span class=mu>"+tline+"</span>":"")+"</div>"+
   (r.win?"":"<p class=warn>This force loses the battle; it is recommended only because it still nets a profit.</p>")+
   "<div class=rec><div class=rec-head><div><span class=badge>"+MODES[S.mode]+"</span><b>Troops to send</b></div>"+
-    "<div class=row style='margin:0'>"+(oUrl(o)?oLink(o,"Open oasis ↗"):"")+"<button class='ghost small' data-act=copy id=copyBtn>📋 Copy</button><button class=small data-act=use>Send to simulator ↓</button></div></div>"+
+    "<div class=row style='margin:0'>"+(oUrl(o)?oLink(o,"Open oasis ↗"):"")+"<button class='ghost small' data-act=copy id=copyBtn>📋 Copy</button><button class='small full' data-act=use>Send to simulator ↓</button></div></div>"+
     bar(H,[["Send",best,"send"],["Dead",r.dead,"dead"],["Home",av.map((a,i)=>a-best[i])]])+
   "</div>"+
   bar(aIdx.map(ah),[["In oasis",aIdx.map(i=>S.an[i])],["Killed",aIdx.map(i=>r.killed[i]),"kill"],["Left",aIdx.map(i=>S.an[i]-r.killed[i])]])+
+  "<div class=full>"+
   "<div class=kpi>"+
   "<div class=hl><b>"+sg(r.net)+"</b>Net Profit</div>"+
   "<div><b>"+f(r.gain)+"</b>Resources Gained</div>"+
@@ -517,11 +558,12 @@ function show(){
   "<h3>Combat details</h3>"+
   "<p class=mu>Attack <b>"+f(r.A)+"</b> vs defence <b>"+f(r.D)+"</b>: "+(r.win?"attacker wins":"attacker loses")+". Attacker loss rate "+(r.al*100).toFixed(1)+"% · animal loss rate "+(r.dl*100).toFixed(1)+"% (before rounding).</p>"+
   "<h3>What-if scenarios</h3>"+whatif(best,av,C)+
-  (all?"<p class=mu style='margin-top:12px'>Sending 100% of available troops: lost "+f(all.lostT)+", gained "+f(all.gain)+", net "+sg(all.net)+".</p>":"");
+  (all?"<p class=mu style='margin-top:12px'>Sending 100% of available troops: lost "+f(all.lostT)+", gained "+f(all.gain)+", net "+sg(all.net)+".</p>":"")+
+  "</div>";
 }
 
 function sim(){
-  const U=TR[S.tribe],m=mArr(),el=$("sim");
+  const U=TR[S.tribe],m=mArr(),el=$("sim");if(S.simple)return;
   if(!m.some(x=>x>0)||!S.an.some(x=>x>0)){el.innerHTML="<p class=mu>Enter a force above (or press “Use recommended”) and the oasis animals in section 2.</p>";return}
   const C=ctx(),r=battle(m,C),tt=travel(m,oDist(curO()));
   const aIdx=AN.map((a,i)=>i).filter(i=>S.an[i]),sent=sum(m),dead=sum(r.dead),aTot=sum(S.an),aKill=sum(r.killed);
@@ -551,7 +593,7 @@ function refresh(){show();sim();oasisSum();oasesUI();compare()}
 let timer;const later=()=>{clearTimeout(timer);timer=setTimeout(refresh,150)};
 
 document.addEventListener("input",e=>{const d=e.target.dataset;if(!d.k)return;const v=Math.max(0,Math.round(+e.target.value||0)),i=+d.i;
-  if(d.k=="n")nArr()[i]=v;else if(d.k=="m")mArr()[i]=v;else if(d.k=="s")sArr()[i]=Math.min(20,v);
+  if(d.k=="n")nArr()[i]=v;else if(d.k=="m")mArr()[i]=v;else if(d.k=="s"){sArr()[i]=Math.min(20,v);smUI()}
   else if(d.k=="an"){S.an[i]=v;const o=curO();if(o){o.an[i]=v;o.t=Date.now()}}
   else if(d.k=="v")S.val[i]=v;else if(d.k=="c")cArr()[i][+d.j]=v;else if(d.k=="sp")spdArr()[i]=v;
   save();later()});
@@ -561,6 +603,9 @@ document.addEventListener("paste",e=>{const t=e.target;if(t.id=="imp"||t.tagName
 $("imp").addEventListener("input",()=>{const v=$("imp").value;if(!v.trim())return;if(tryImport(v))$("imp").value=""});
 document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;
   if(a=="theme"){S.theme={auto:"light",light:"dark",dark:"auto"}[S.theme||"auto"];save();applyTheme();return}
+  if(a=="simple"){S.simple=!S.simple;save();applyView();refresh();return}
+  if(a=="smithy"){S.smOpen=!S.smOpen;save();applyView();return}
+  if(a=="save-as"){saveAs();return}
   if(a=="copy"){const done=()=>{const c=$("copyBtn");if(c){c.textContent="✓ Copied";setTimeout(()=>{const c2=$("copyBtn");if(c2)c2.textContent="📋 Copy"},1500)}};
     try{navigator.clipboard.writeText(lastText).then(done,()=>prompt("Copy:",lastText))}catch(x){prompt("Copy:",lastText)}return}
   if(a=="use"){if(!lastBest)return;S.m[S.tribe]=lastBest.slice();save();build();refresh();$("manual").scrollIntoView({behavior:"smooth",block:"center"});return}
@@ -573,10 +618,6 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(
     if(v){if(c[1].trim())v.name=c[1].trim()}else{v={id,name:c[1].trim()||"Village",x:+c[2],y:+c[3],ts:0};S.villages.push(v)}
     S.vil=id;save();vilUI();refresh();return}
   if(a=="del-vil"){S.villages=S.villages.filter(z=>z.id!=S.vil);S.vil=null;save();vilUI();refresh();return}
-  if(a=="save-cur"){const nm=prompt("Name or coordinates for this oasis (e.g. -164|184):");if(!nm)return;
-    const c=nm.replace(/[\u2212\u2013]/g,"-").match(/^\s*\(?\s*(-?\d+)\s*\|\s*(-?\d+)\s*\)?\s*$/);
-    const o=c?{id:c[1]+"|"+c[2],x:+c[1],y:+c[2]}:{id:"n:"+nm+":"+Date.now(),name:nm};
-    S.oases=S.oases.filter(z=>z.id!=o.id);Object.assign(o,{an:S.an.slice(),bonus:"",dist:null,t:Date.now()});S.oases.unshift(o);S.cur=o.id;save();refresh();return}
   if(a=="clr-troops")nArr().fill(0);else if(a=="clr-an"){S.an.fill(0);S.cur=null}else if(a=="clr-sim")mArr().fill(0);else return;
   save();build();refresh()});
 $("cmpBox").addEventListener("toggle",compare);
@@ -590,7 +631,7 @@ $("base").oninput=()=>{S.base=Math.max(0,+$("base").value||0);save();later()};
 $("speed").oninput=()=>{S.speed=Math.max(0.1,+$("speed").value||1);save();later()};
 $("msize").oninput=()=>{S.msize=Math.max(1,Math.round(+$("msize").value||401));save();later()};
 $("tribe").onchange=()=>{S.tribe=$("tribe").value;save();build();refresh()};
-$("reset").onclick=()=>{if(!confirm("Reset all inputs and settings? Saved oases and villages are kept."))return;const o=S.oases,v=S.villages,sv=S.vil,sr=S.server;S=fresh();S.oases=o;S.villages=v;S.vil=sv;S.server=sr;save();build();refresh()};
+$("reset").onclick=()=>{if(!confirm("Reset all inputs and settings? Saved oases and villages are kept."))return;const k={oases:S.oases,villages:S.villages,vil:S.vil,server:S.server,simple:S.simple,theme:S.theme};S=Object.assign(fresh(),k);save();build();refresh()};
 build();refresh();
 setInterval(()=>{oasesUI()},60000); // keep the "x minutes ago" labels fresh
 </script>
