@@ -1,12 +1,80 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <!-- This meta tag tells the browser to redirect immediately -->
-    <meta http-equiv="refresh" content="0; url=./resources.html">
-    <title>Redirecting...</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Choose a tool</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --card: #ffffff;
+      --text: #1d2330;
+      --muted: #5f6b7a;
+      --border: #dde1e7;
+      --accent: #2f6fed;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #14171c;
+        --card: #1d2128;
+        --text: #e8ebf0;
+        --muted: #9aa4b2;
+        --border: #2c323b;
+        --accent: #6b9bff;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { width: 100%; max-width: 560px; }
+    h1 { font-size: 1.5rem; margin: 0 0 6px; }
+    p.lead { margin: 0 0 24px; color: var(--muted); }
+    .tools { display: grid; gap: 12px; }
+    a.tool {
+      display: block;
+      padding: 18px 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: inherit;
+      text-decoration: none;
+      transition: border-color .15s, transform .15s;
+    }
+    a.tool:hover, a.tool:focus-visible {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+      outline: none;
+    }
+    a.tool strong { display: block; font-size: 1.05rem; margin-bottom: 4px; }
+    a.tool span { color: var(--muted); font-size: .92rem; }
+  </style>
 </head>
 <body>
-    <p>If you are not redirected automatically, follow this <a href="./my-function.html">link to my function</a>.</p>
+  <main>
+    <h1>Choose a tool</h1>
+    <p class="lead">Pick the script you want to open.</p>
+
+    <div class="tools">
+      <!-- Edit href, title and description for each script -->
+      <a class="tool" href="resources.html">
+        <strong>Resources</strong>
+        <span>Short description of what this script does.</span>
+      </a>
+
+      <a class="tool" href="Raid%20Optimizer.html">
+        <strong>Raid Optimizer</strong>
+        <span>Short description of what this script does.</span>
+      </a>
+    </div>
+  </main>
 </body>
 </html>
