@@ -50,6 +50,8 @@ button.ghost:hover { background: var(--ac-soft); border-color: var(--ac); }
 button.small { padding: 5px 10px; font-size: 13px; }
 #reset { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
 #reset:hover { background: var(--bad); color: #fff; }
+a.olink { color: var(--ac); text-decoration: none; font-weight: 600; }
+a.olink:hover { text-decoration: underline; }
 
 .w { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 13.5px; }
@@ -91,6 +93,8 @@ table.res tr.n td { font-size: 15px; background: rgba(127,127,127,0.05); }
 button.chip { background: transparent; color: var(--tx); border: none; border-radius: 0; padding: 5px 4px 5px 12px; font-weight: 500; font-size: 13px; }
 button.chip:hover { background: var(--ac-soft); }
 .chip .age { color: var(--mu); font-size: 11px; margin-left: 4px; }
+.chipw a.olink { display: inline-flex; align-items: center; padding: 5px 6px; font-size: 14px; }
+.chipw a.olink:hover { background: var(--ac-soft); text-decoration: none; }
 button.chip-x { background: transparent; color: var(--mu); border: none; border-radius: 0; padding: 5px 10px 5px 6px; font-size: 15px; line-height: 1; }
 button.chip-x:hover { color: var(--bad); background: var(--bad-soft); }
 .cur { padding: 8px 12px; border-radius: 6px; background: var(--ac-soft); font-size: 13px; margin-bottom: 12px; }
@@ -148,7 +152,7 @@ details.cmp { margin-top: 14px; }
 .stats b { display: block; font-size: 15px; color: var(--tx); font-variant-numeric: tabular-nums; }
 
 @media (max-width: 560px) { .card { padding: 14px; } h1 { font-size: 20px; } .rep-body { padding: 12px; } }
-@media print { button, .imp { display: none !important; } .card { box-shadow: none; } }
+@media print { button, .imp, a.olink { display: none !important; } .card { box-shadow: none; } }
 </style>
 </head>
 <body>
@@ -209,13 +213,16 @@ details.cmp { margin-top: 14px; }
 
   <section class="card">
     <details>
-      <summary>⚙️ Settings: Units, Bounty, Base Defence & Server</summary>
+      <summary>⚙️ Settings: Server, Units, Bounty & Base Defence</summary>
+      <div class="row">
+        <label>Game server <input type="url" id="server" style="width:330px;text-align:left" placeholder="https://ts6.x1.international.travian.com"></label>
+      </div>
       <div class="row">
         <label>Oasis base defence <input type="number" inputmode="numeric" id="base" min="0" style="width:60px"></label>
         <label>Troop speed × <input type="number" inputmode="decimal" id="speed" min="0.1" step="any" style="width:60px"></label>
         <label>Map size <input type="number" inputmode="numeric" id="msize" min="1" style="width:70px"></label>
       </div>
-      <p class="mu">Base defence is added to the animals' defence (10 is the village value; check once against the in-game simulator with defender Nature and set 0 if it doesn't match). Troop speed × is your server's troop speed multiplier. Map size is used for wrap-around distances (standard maps are 401 × 401).</p>
+      <p class="mu">Game server is used for the ↗ links that open an oasis in the game (any address from your server works; only the server part is used). Base defence is added to the animals' defence (10 is the village value; check once against the in-game simulator with defender Nature and set 0 if it doesn't match). Troop speed × is your server's troop speed multiplier. Map size is used for wrap-around distances (standard maps are 401 × 401).</p>
       <p class="mu">Adjust unit costs, speeds and bounty values if they differ on your server. Bounty is the total per animal, paid equally in the four resources.</p>
       <div class="w" id="costs"></div>
       <div class="w" id="vals"></div>
@@ -243,7 +250,7 @@ const EXACT=100000; // brute-force every combination up to this many
 const KEY="travian-oasis-opt-v2",$=id=>document.getElementById(id),f=x=>Math.round(x).toLocaleString();
 const esc=s=>String(s).replace(/[&<>"']/g,c=>"&#"+c.charCodeAt(0)+";");
 const sg=v=>"<span class="+(v>=0?"pos":"neg")+">"+(v>=0?"+":"-")+f(Math.abs(v))+"</span>";
-const fresh=()=>({tribe:"Teutons",m:{},n:{},s:{},cost:{},spd:{},an:AN.map(()=>0),val:AN.map(a=>a[3]),tol:2,mode:"raid",meas:"units",base:10,theme:"auto",oases:[],cur:null,villages:[],vil:null,speed:1,msize:401});
+const fresh=()=>({tribe:"Teutons",m:{},n:{},s:{},cost:{},spd:{},an:AN.map(()=>0),val:AN.map(a=>a[3]),tol:2,mode:"raid",meas:"units",base:10,theme:"auto",oases:[],cur:null,villages:[],vil:null,speed:1,msize:401,server:"https://ts6.x1.international.travian.com"});
 let S=fresh();try{S=Object.assign(S,JSON.parse(localStorage.getItem(KEY))||{})}catch(e){}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const get=(o,d)=>o[S.tribe]||(o[S.tribe]=d());
@@ -335,9 +342,7 @@ function optimize(av,tol,C,meas){
 /* ================= DISTANCE & TRAVEL TIME (display only) ================= */
 const curV=()=>S.villages.find(v=>v.id==S.vil)||null;
 function dist(a,b){const w=+S.msize||401;let dx=Math.abs(a.x-b.x),dy=Math.abs(a.y-b.y);dx=Math.min(dx,w-dx);dy=Math.min(dy,w-dy);return Math.sqrt(dx*dx+dy*dy)}
-// distance of a saved oasis: from the starting village if set, otherwise the distance read from the paste
 function oDist(o){if(!o)return null;const v=curV();if(v&&o.x!=null)return dist(v,o);return o.dist!=null?o.dist:null}
-// one-way travel time, set by the slowest unit sent; Tournament Square speeds up the part beyond 20 fields
 function travel(send,d){
   if(d==null)return null;const sp=spdArr(),U=TR[S.tribe];let s=Infinity,who="";
   send.forEach((n,i)=>{if(n>0&&sp[i]>0&&sp[i]<s){s=sp[i];who=U[i][0]}});
@@ -349,8 +354,12 @@ function travel(send,d){
 const fmtT=sec=>{sec=Math.round(sec);const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;return h+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0")};
 const fd=d=>d==null?"–":(Math.round(d*10)/10).toLocaleString();
 
+/* ================= GAME LINKS ================= */
+const srv=()=>{let s=String(S.server||"").trim();if(!s)return"";if(!/^https?:\/\//i.test(s))s="https://"+s;try{return new URL(s).origin}catch(e){return""}};
+const oUrl=o=>o&&o.x!=null&&srv()?srv()+"/position_details.php?x="+o.x+"&y="+o.y:"";
+const oLink=(o,txt)=>{const u=oUrl(o);return u?"<a class=olink href='"+esc(u)+"' target=_blank rel=noopener title='Open this oasis in the game (new tab)'>"+(txt||"↗")+"</a>":""};
+
 /* ================= OASIS IMPORT & STORAGE ================= */
-// Reads a copy-paste of the in-game oasis page (English): coordinates, animals, bonus, distance, villages
 function parseOasis(txt){
   const t=String(txt||"").replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g,"").replace(/[\u2212\u2013]/g,"-").replace(/\r/g,"");
   const c=t.match(/oasis\s*\(\s*(-?\d+)\s*\|\s*(-?\d+)\s*\)/i);
@@ -361,7 +370,6 @@ function parseOasis(txt){
   let bonus="";const bi=t.search(/^\s*Bonus\s*$/mi);
   if(bi>=0&&bi<ti){const b=[...t.slice(bi,ti).matchAll(/(\d+)\s*%\s*([A-Za-z]+)/g)].map(m=>m[1]+"% "+m[2]);bonus=b.join(" + ")}
   const d=t.match(/Distance\s*([\d.,]+)\s*field/i);
-  // village list (name line followed by coordinates line) and the selected village (line above "Population:")
   let villages=[];const vi=t.search(/^\s*Villages\b/mi);
   if(vi>=0){let vs=t.slice(vi);const ve=vs.search(/^\s*Task overview|^\s*Homepage/mi);if(ve>0)vs=vs.slice(0,ve);
     villages=[...vs.matchAll(/^[ \t]*([^\n(]+?)[ \t]*\n[ \t]*\([ \t]*(-?\d+)[ \t]*\|[ \t]*(-?\d+)[ \t]*\)/gm)].map(m=>({name:m[1].trim(),x:+m[2],y:+m[3]}))}
@@ -381,7 +389,6 @@ function setMsg(h,ok){const m=$("impMsg");m.innerHTML=h;m.className=ok?"pos":"ne
 function tryImport(txt,quiet){
   const o=parseOasis(txt);
   if(!o){if(!quiet)setMsg("Couldn't read an oasis from that text. Open the oasis page, press Ctrl+A, Ctrl+C and paste again.",0);return false}
-  // remember villages from the paste and pick the one that was selected in the game
   o.villages.forEach(v=>{const id=v.x+"|"+v.y;const e=S.villages.find(z=>z.id==id);if(e)e.name=v.name;else S.villages.push({id,name:v.name,x:v.x,y:v.y,ts:0})});
   let act=o.activeName?S.villages.find(v=>v.name==o.activeName):null;
   if(!act&&o.dist!=null){const c=S.villages.filter(v=>Math.abs(dist(v,o)-o.dist)<0.06);if(c.length==1)act=c[0]}
@@ -400,9 +407,9 @@ function vilUI(){
 }
 
 function oasesUI(){
-  $("olist").innerHTML=S.oases.length?"<span class=mu>Saved:</span>"+S.oases.map(o=>"<span class='chipw"+(o.id==S.cur?" on":"")+"'><button class=chip data-act=load data-id='"+esc(o.id)+"' title='Load this oasis'><b>"+lab(o)+"</b> "+anSum(o.an)+"<span class=age>· "+age(o.t)+"</span></button><button class=chip-x data-act=del data-id='"+esc(o.id)+"' title='Remove'>×</button></span>").join(""):"";
-  const o=curO(),v=curV(),d=oDist(o);
-  $("curO").innerHTML=o?"<div class=cur>📍 <b>"+lab(o)+"</b>"+(o.bonus?" · "+o.bonus:"")+(d!=null?" · "+fd(d)+" fields"+(v&&o.x!=null?" from "+esc(v.name):""):"")+" · data from "+ago(o.t)+"</div>":"";
+  $("olist").innerHTML=S.oases.length?"<span class=mu>Saved:</span>"+S.oases.map(o=>"<span class='chipw"+(o.id==S.cur?" on":"")+"'><button class=chip data-act=load data-id='"+esc(o.id)+"' title='Load this oasis'><b>"+lab(o)+"</b> "+anSum(o.an)+"<span class=age>· "+age(o.t)+"</span></button>"+oLink(o)+"<button class=chip-x data-act=del data-id='"+esc(o.id)+"' title='Remove'>×</button></span>").join(""):"";
+  const o=curO(),v=curV(),d=oDist(o),lk=oLink(o,"Open in game ↗");
+  $("curO").innerHTML=o?"<div class=cur>📍 <b>"+lab(o)+"</b>"+(o.bonus?" · "+o.bonus:"")+(d!=null?" · "+fd(d)+" fields"+(v&&o.x!=null?" from "+esc(v.name):""):"")+" · data from "+ago(o.t)+(lk?" · "+lk:"")+"</div>":"";
   $("saveCur").style.display=!o&&S.an.some(x=>x>0)?"":"none";
   $("cmpN").textContent=S.oases.length;
 }
@@ -416,8 +423,8 @@ function compare(){
   try{rows=S.oases.map(o=>{S.an=o.an;const C=ctx(),b=optimize(av,S.tol,C,S.meas),r=battle(b,C);return{o,b,r}})}finally{S.an=keep}
   rows.sort((p,q)=>(q.r?q.r.net:-1e9)-(p.r?p.r.net:-1e9));
   el.innerHTML="<p class=mu style='margin-top:0'>Ranked by best net profit with your current troops, tolerance and attack type ("+MODES[S.mode].toLowerCase()+"). "+(v?"Distances from <b>"+vlab(v)+"</b>.":"Set a starting village in section 1 for exact distances.")+" Time is one way, set by the slowest unit sent.</p><div class=w><table><tr><th>Oasis</th><th>Animals</th><th>Dist</th><th>Send</th><th>⏱ One way</th><th>Dead</th><th>Net</th><th></th></tr>"+
-    rows.map(({o,b,r})=>{const d=oDist(o),tt=r?travel(b,d):null;
-      return "<tr"+(o.id==S.cur?" style='background:var(--ac-soft)'":"")+"><td><b>"+lab(o)+"</b><small>"+(o.bonus?o.bonus+" · ":"")+ago(o.t)+"</small></td><td>"+anSum(o.an)+"</td><td>"+fd(d)+"</td>"+
+    rows.map(({o,b,r})=>{const d=oDist(o),tt=r?travel(b,d):null,lk=oLink(o);
+      return "<tr"+(o.id==S.cur?" style='background:var(--ac-soft)'":"")+"><td><b>"+lab(o)+"</b>"+(lk?" "+lk:"")+"<small>"+(o.bonus?o.bonus+" · ":"")+ago(o.t)+"</small></td><td>"+anSum(o.an)+"</td><td>"+fd(d)+"</td>"+
       (r?"<td>"+U.map((u,i)=>b[i]?b[i]+" "+ab(u[0]):"").filter(Boolean).join(" · ")+"</td><td>"+(tt?fmtT(tt.sec):"–")+"</td><td>"+(U.map((u,i)=>r.dead[i]?r.dead[i]+" "+ab(u[0]):"").filter(Boolean).join(" · ")||"none")+"</td><td>"+sg(r.net)+"</td>"
         :"<td colspan=4 class=neg style='text-align:left'>Not profitable</td>")+
       "<td><button class='ghost small' data-act=load data-id='"+esc(o.id)+"'>Load</button></td></tr>"}).join("")+"</table></div>";
@@ -447,7 +454,7 @@ function applyTheme(){
 }
 
 function build(){
-  $("tribe").value=S.tribe;$("tol").value=S.tol;$("mode").value=S.mode;$("meas").value=S.meas;$("base").value=S.base;$("speed").value=S.speed;$("msize").value=S.msize;
+  $("tribe").value=S.tribe;$("tol").value=S.tol;$("mode").value=S.mode;$("meas").value=S.meas;$("base").value=S.base;$("speed").value=S.speed;$("msize").value=S.msize;$("server").value=S.server||"";
   const U=TR[S.tribe],n=nArr(),s=sArr(),c=cArr(),m=mArr(),sp=spdArr(),H=U.map(uh);
   $("troops").innerHTML="<div class=w><table class=bar><tr><th></th>"+H.join("")+"</tr>"+
     "<tr><td>Available</td>"+U.map((u,i)=>"<td>"+inp("n",i,n[i])+"</td>").join("")+"</tr>"+
@@ -488,14 +495,14 @@ function show(){
   lastBest=best.slice();
   const sent=sum(best),H=U.map(uh),aTot=sum(S.an),aKill=sum(r.killed),tt=travel(best,d);
   const tline=tt?"⏱ "+fmtT(tt.sec)+" one way · back in "+fmtT(tt.sec*2)+" · "+fd(d)+" fields · slowest: "+esc(tt.who)+" ("+tt.sp+" fields/h)":(d==null?"Set a starting village or import the oasis to see travel time.":"");
-  lastText=MODES[S.mode]+(o?" "+(o.name||"("+o.x+"|"+o.y+")"):"")+": "+U.map((u,i)=>best[i]?u[0]+" "+best[i]:"").filter(Boolean).join(", ")+" | expected dead: "+(U.map((u,i)=>r.dead[i]?u[0]+" "+r.dead[i]:"").filter(Boolean).join(", ")||"none")+" | net "+(r.net>=0?"+":"-")+f(Math.abs(r.net))+(tt?" | "+fmtT(tt.sec)+" one way":"");
+  lastText=MODES[S.mode]+(o?" "+(o.name||"("+o.x+"|"+o.y+")"):"")+": "+U.map((u,i)=>best[i]?u[0]+" "+best[i]:"").filter(Boolean).join(", ")+" | expected dead: "+(U.map((u,i)=>r.dead[i]?u[0]+" "+r.dead[i]:"").filter(Boolean).join(", ")||"none")+" | net "+(r.net>=0?"+":"-")+f(Math.abs(r.net))+(tt?" | "+fmtT(tt.sec)+" one way":"")+(oUrl(o)?" | "+oUrl(o):"");
   const aIdx=AN.map((a,i)=>i).filter(i=>S.an[i]);
 
   el.innerHTML=
   "<div class='verdict "+(r.win?"ok":"bad")+"'>"+(r.win?"✅":"⚠️")+" <b>"+MODES[S.mode]+(o?" "+lab(o):"")+" with "+f(sent)+" troops</b> → net "+sg(r.net)+(tline?"<span class=mu>"+tline+"</span>":"")+"</div>"+
   (r.win?"":"<p class=warn>This force loses the battle; it is recommended only because it still nets a profit.</p>")+
   "<div class=rec><div class=rec-head><div><span class=badge>"+MODES[S.mode]+"</span><b>Troops to send</b></div>"+
-    "<div class=row style='margin:0'><button class='ghost small' data-act=copy id=copyBtn>📋 Copy</button><button class=small data-act=use>Send to simulator ↓</button></div></div>"+
+    "<div class=row style='margin:0'>"+(oUrl(o)?oLink(o,"Open oasis ↗"):"")+"<button class='ghost small' data-act=copy id=copyBtn>📋 Copy</button><button class=small data-act=use>Send to simulator ↓</button></div></div>"+
     bar(H,[["Send",best,"send"],["Dead",r.dead,"dead"],["Home",av.map((a,i)=>a-best[i])]])+
   "</div>"+
   bar(aIdx.map(ah),[["In oasis",aIdx.map(i=>S.an[i])],["Killed",aIdx.map(i=>r.killed[i]),"kill"],["Left",aIdx.map(i=>S.an[i]-r.killed[i])]])+
@@ -549,7 +556,6 @@ document.addEventListener("input",e=>{const d=e.target.dataset;if(!d.k)return;co
   else if(d.k=="v")S.val[i]=v;else if(d.k=="c")cArr()[i][+d.j]=v;else if(d.k=="sp")spdArr()[i]=v;
   save();later()});
 document.addEventListener("focusin",e=>{if(e.target.tagName=="INPUT")setTimeout(()=>{try{e.target.select()}catch(x){}},0)});
-// paste an oasis page anywhere (except into another field)
 document.addEventListener("paste",e=>{const t=e.target;if(t.id=="imp"||t.tagName=="INPUT"||t.tagName=="TEXTAREA")return;
   const txt=(e.clipboardData||window.clipboardData).getData("text");if(tryImport(txt,true))e.preventDefault()});
 $("imp").addEventListener("input",()=>{const v=$("imp").value;if(!v.trim())return;if(tryImport(v))$("imp").value=""});
@@ -576,6 +582,7 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(
 $("cmpBox").addEventListener("toggle",compare);
 $("vil").onchange=()=>{S.vil=$("vil").value||null;save();vilUI();refresh()};
 $("ts").oninput=()=>{const v=curV();if(!v)return;v.ts=Math.min(20,Math.max(0,Math.round(+$("ts").value||0)));save();later()};
+$("server").oninput=()=>{S.server=$("server").value.trim();save();later()};
 $("tol").oninput=()=>{S.tol=Math.min(50,Math.max(0,+$("tol").value||0));save();later()};
 $("mode").onchange=()=>{S.mode=$("mode").value;save();later()};
 $("meas").onchange=()=>{S.meas=$("meas").value;save();later()};
@@ -583,7 +590,7 @@ $("base").oninput=()=>{S.base=Math.max(0,+$("base").value||0);save();later()};
 $("speed").oninput=()=>{S.speed=Math.max(0.1,+$("speed").value||1);save();later()};
 $("msize").oninput=()=>{S.msize=Math.max(1,Math.round(+$("msize").value||401));save();later()};
 $("tribe").onchange=()=>{S.tribe=$("tribe").value;save();build();refresh()};
-$("reset").onclick=()=>{if(!confirm("Reset all inputs and settings? Saved oases and villages are kept."))return;const o=S.oases,v=S.villages,sv=S.vil;S=fresh();S.oases=o;S.villages=v;S.vil=sv;save();build();refresh()};
+$("reset").onclick=()=>{if(!confirm("Reset all inputs and settings? Saved oases and villages are kept."))return;const o=S.oases,v=S.villages,sv=S.vil,sr=S.server;S=fresh();S.oases=o;S.villages=v;S.vil=sv;S.server=sr;save();build();refresh()};
 build();refresh();
 setInterval(()=>{oasesUI()},60000); // keep the "x minutes ago" labels fresh
 </script>
