@@ -303,31 +303,37 @@ return{A,D,ai,ac,di:C.di,dc:C.dc,e,N,win,al,dl,lone,dead,killed,lost,lostT,gain,
 const sizeOf=(n,C,meas)=>{let s=0;for(let i=0;i<n.length;i++)s+=n[i]*(meas=="upkeep"?C.up[i]:meas=="value"?C.ct[i]:1);return s};
 // local search; att (unit attack values) enables attack-equivalent swaps between unit types;
 // blk = unit types per wave (merge moves stay inside one wave)
+// local search; att (unit attack values) enables attack-equivalent swaps between unit types;
+// blk = unit types per wave (merge moves stay inside one wave)
 function climb(n,score,av,att,blk){
 blk=blk||av.length;
-let s=score(n);
+// never accept a plan with a negative count or more than available (negative units would look like a "smaller" force)
+const sc=m=>{for(let t=0;t<m.length;t++)if(m[t]<0||m[t]>av[t])return Infinity;return score(m)};
+let s=sc(n);
 for(let st=Math.max(1,...av);st>=1;st=Math.floor(st/2)){
 let imp=true,g=0;
 while(imp&&g++<200){imp=false;
 for(let i=0;i<av.length;i++){if(!av[i])continue;
-for(const d of[-st,st]){const v=Math.min(av[i],Math.max(0,n[i]+d));if(v==n[i])continue;const m=n.slice();m[i]=v;const t=score(m);if(t<s){n=m;s=t;imp=true}}}
+for(const d of[-st,st]){const v=Math.min(av[i],Math.max(0,n[i]+d));if(v==n[i])continue;const m=n.slice();m[i]=v;const t=sc(m);if(t<s){n=m;s=t;imp=true}}}
 for(let i=0;i<av.length;i++)for(let j=0;j<av.length;j++){if(i==j||!n[i]||n[j]>=av[j])continue;
-const mv=Math.min(st,n[i],av[j]-n[j]),m=n.slice();m[i]-=mv;m[j]+=mv;const t=score(m);if(t<s){n=m;s=t;imp=true}
+const mv=Math.min(st,n[i],av[j]-n[j]),m=n.slice();m[i]-=mv;m[j]+=mv;const t=sc(m);if(t<s){n=m;s=t;imp=true}
 // swap k of unit i for about the same attack in unit j (e.g. 4 Clubswingers -> 1 Teutonic Knight, and back)
 if(!att||!n[i]||n[j]>=av[j])continue;
 const k=Math.min(st,n[i]),x=k*att[i]/att[j];
 for(const add of new Set([Math.floor(x),Math.ceil(x)])){
+if(n[i]<k)break; // an earlier swap in this loop already used these units
 const a=Math.min(av[j]-n[j],add);if(a<1||a==k)continue;
-const m2=n.slice();m2[i]-=k;m2[j]+=a;const t2=score(m2);if(t2<s){n=m2;s=t2;imp=true}}}
+const m2=n.slice();m2[i]-=k;m2[j]+=a;const t2=sc(m2);if(t2<s){n=m2;s=t2;imp=true}}}
 // merge: two units -> one unit of another type in the same wave (e.g. Legionnaire + Praetorian -> Equites Imperatoris);
 // many plans tie on losses, and reaching the smaller one takes two changes at once
 if(st==1)for(let i=0;i<av.length;i++){const w0=i-i%blk;
 for(let j=i;j<w0+blk;j++)for(let k=w0;k<w0+blk;k++){
 if(k==i||k==j||n[k]>=av[k]||(j==i?n[i]<2:!n[i]||!n[j]))continue;
-const m=n.slice();m[i]--;m[j]--;m[k]++;const t=score(m);if(t<s){n=m;s=t;imp=true}}}
+const m=n.slice();m[i]--;m[j]--;m[k]++;const t=sc(m);if(t<s){n=m;s=t;imp=true}}}
 }
 }
 return[n,s];
+}
 }
 function optimize(av,tol,C,meas){
 const L=av.length,Z=av.map(()=>0),size=n=>sizeOf(n,C,meas);
