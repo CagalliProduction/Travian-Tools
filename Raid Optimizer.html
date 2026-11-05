@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Travian Oasis Raid Optimizer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <style>
 :root {
 --bg: #f4f6f9; --card: #ffffff; --tx: #1a1e23; --mu: #656d76; --bd: #d0d7de;
@@ -40,11 +41,13 @@ h3 { font-size: 13px; margin: 22px 0 10px; color: var(--ac); font-weight: 600; t
 label { font-weight: 500; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 input, select, button { font: 14px system-ui, sans-serif; background: var(--in); color: var(--tx); border: 1px solid var(--bd); border-radius: 6px; padding: 7px 9px; transition: 0.15s ease border-color, 0.15s ease background; }
 input { width: 76px; text-align: right; }
+input[type=checkbox] { width: auto; padding: 0; margin: 0; }
 input:disabled { opacity: .45; }
 input::placeholder, textarea::placeholder { color: var(--mu); opacity: .7; }
 input:focus, select:focus { border-color: var(--ac); outline: none; box-shadow: 0 0 0 3px var(--ac-soft); }
 button { background: var(--ac); color: #fff; border: none; cursor: pointer; font-weight: 600; padding: 7px 14px; }
 button:hover { background: var(--ac-hover); }
+button:disabled { opacity: .45; cursor: default; pointer-events: none; }
 button.ghost { background: transparent; color: var(--ac); border: 1px solid var(--bd); }
 button.ghost:hover { background: var(--ac-soft); border-color: var(--ac); }
 button.small { padding: 5px 10px; font-size: 13px; }
@@ -71,6 +74,7 @@ table.bar td:first-child, table.bar th:first-child { text-align: left; color: va
 table.bar input { width: 100%; max-width: 84px; text-align: center; }
 .tag { display: block; font-size: 11px; font-weight: 500; color: var(--mu); margin-top: 2px; }
 .zero { opacity: .3; }
+.stale { opacity: .5; pointer-events: none; transition: opacity .15s; }
 tr.send td { font-size: 18px; font-weight: 700; color: var(--ac); background: var(--ac-soft); }
 tr.send td:first-child { font-size: 13px; }
 tr.dead td:not(:first-child):not(.zero) { color: var(--bad); font-weight: 600; }
@@ -171,7 +175,7 @@ body.simple h1 { font-size: 20px; }
 <button class="ghost small" data-act="theme" id="themeBtn" title="Switch theme">🌓 Auto</button>
 </div>
 </header>
-<p class="mu full">Enter your troops and the oasis animals. <b>Clear oasis</b> plans raids that kill every animal with the fewest troops lost, then the fewest units, and only recommends them if the bounty is worth more than the losses. <b>Max profit</b> finds the force with the highest net profit (animal bounty minus training cost of troops lost), then the smallest force within your tolerance.</p>
+<p class="mu full">Enter your troops and the oasis animals. <b>Clear oasis</b> plans raids that kill every animal with the fewest troops lost, then the fewest units. <b>Max profit</b> finds the force with the highest net profit (animal bounty minus training cost of troops lost), then the smallest force within your tolerance. Both show a quick answer as you type; 🔎 Deep search proves the best one.</p>
 
 <section class="card">
 <div class="card-head"><h2>1. My Available Troops</h2>
@@ -208,8 +212,9 @@ body.simple h1 { font-size: 20px; }
 <div class="row">
 <div class="seg" id="goalSw"><button data-act="goal" data-v="clear">🧹 Clear oasis</button><button data-act="goal" data-v="profit">💰 Max profit</button></div>
 <div class="seg clr" id="poolSw"><button data-act="pool" data-v="train" title="All waves leave together; each unit goes in one wave only">🚂 Train</button><button data-act="pool" data-v="vasca" title="Waves go one after another; survivors come back and go again">🔁 Vasca</button></div>
+<label class="clr">Max waves <input type="number" inputmode="numeric" id="hcW" min="1" max="12" style="width:60px"></label>
 </div>
-<p class="mu full clr" style="margin-top:0">Clears every animal with raids, over as many waves as it takes. The plan that loses the least (training cost of dead units) wins; among equal losses, the one using the fewest units. A plan is only recommended if the animals' bounty is worth more than the troops lost (net above zero). 🚂 Train: all waves leave together and each unit goes once. 🔁 Vasca: waves go one after another and survivors go again. Animals that regrow between waves are not counted.</p>
+<p class="mu full clr" style="margin-top:0">Clears every animal with raids. The plan that loses the least (training cost of dead units) wins; among equal losses, the one using the fewest units. The quick plan updates as you type; 🔎 Deep search checks every sequence of up to Max waves and replaces it with the proven best. 🚂 Train: all waves leave together and each unit goes once. 🔁 Vasca: waves go one after another and survivors go again. Animals that regrow between waves are not counted.</p>
 <div class="row full prof">
 <label>Attack type <select id="mode"><option value="raid">Raid</option><option value="attack">Normal attack</option></select></label>
 <label>Tolerance <input type="number" inputmode="decimal" id="tol" min="0" max="50" style="width:60px"> %</label>
@@ -217,6 +222,7 @@ body.simple h1 { font-size: 20px; }
 </div>
 <p class="mu full prof" style="margin-top:0">Tolerance: how much net profit you give up to send fewer troops. 0 = maximum profit. Travel time is shown for information only and never affects the recommendation.</p>
 <div id="res"></div>
+
 </section>
 
 <section class="card full">
@@ -264,10 +270,11 @@ const MODES={raid:"Raid",attack:"Normal attack"};
 const RES=[["🪵","Wood"],["🧱","Clay"],["⛏️","Iron"],["🌾","Crop"]];
 const EXACT=100000; // brute-force every combination up to this many
 const MAXW=12; // safety cap on waves; the planner stops adding waves as soon as more stop helping
+const TITLE=document.title;
 const KEY="travian-oasis-opt-v2",$=id=>document.getElementById(id),f=x=>Math.round(x).toLocaleString();
 const esc=s=>String(s).replace(/[&<>"']/g,c=>"&#"+c.charCodeAt(0)+";");
 const sg=v=>"<span class="+(v>=0?"pos":"neg")+">"+(v>=0?"+":"-")+f(Math.abs(v))+"</span>";
-const fresh=()=>({tribe:"Teutons",m:{},n:{},s:{},cost:{},spd:{},an:AN.map(()=>0),val:AN.map(a=>a[3]),tol:2,mode:"raid",meas:"units",goal:"clear",pool:"train",base:10,theme:"auto",oases:[],cur:null,villages:[],vil:null,speed:1,msize:401,server:"https://ts6.x1.international.travian.com",simple:false,smOpen:false});
+const fresh=()=>({tribe:"Teutons",m:{},n:{},s:{},cost:{},spd:{},an:AN.map(()=>0),val:AN.map(a=>a[3]),tol:2,mode:"raid",meas:"units",goal:"clear",pool:"train",base:10,theme:"auto",oases:[],cur:null,villages:[],vil:null,speed:1,msize:401,server:"https://ts6.x1.international.travian.com",simple:false,smOpen:false,hcW:2});
 let S=fresh();try{S=Object.assign(S,JSON.parse(localStorage.getItem(KEY))||{})}catch(e){}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const curMode=()=>S.goal=="clear"?"raid":S.mode; // clear-oasis mode always raids
@@ -301,40 +308,26 @@ for(let i=0;i<AN.length;i++){const k=Math.round(C.an[i]*dl);gain+=k*S.val[i];if(
 return{A,D,ai,ac,di:C.di,dc:C.dc,e,N,win,al,dl,lone,dead,killed,lost,lostT,gain,net:gain-lostT};
 }
 const sizeOf=(n,C,meas)=>{let s=0;for(let i=0;i<n.length;i++)s+=n[i]*(meas=="upkeep"?C.up[i]:meas=="value"?C.ct[i]:1);return s};
-// local search; att (unit attack values) enables attack-equivalent swaps between unit types;
-// blk = unit types per wave (merge moves stay inside one wave)
-// local search; att (unit attack values) enables attack-equivalent swaps between unit types;
-// blk = unit types per wave (merge moves stay inside one wave)
-function climb(n,score,av,att,blk){
-blk=blk||av.length;
-// never accept a plan with a negative count or more than available (negative units would look like a "smaller" force)
-const sc=m=>{for(let t=0;t<m.length;t++)if(m[t]<0||m[t]>av[t])return Infinity;return score(m)};
-let s=sc(n);
+// local search; att (unit attack values) enables attack-equivalent swaps between unit types
+function climb(n,score,av,att){
+let s=score(n);
 for(let st=Math.max(1,...av);st>=1;st=Math.floor(st/2)){
 let imp=true,g=0;
 while(imp&&g++<200){imp=false;
 for(let i=0;i<av.length;i++){if(!av[i])continue;
-for(const d of[-st,st]){const v=Math.min(av[i],Math.max(0,n[i]+d));if(v==n[i])continue;const m=n.slice();m[i]=v;const t=sc(m);if(t<s){n=m;s=t;imp=true}}}
+for(const d of[-st,st]){const v=Math.min(av[i],Math.max(0,n[i]+d));if(v==n[i])continue;const m=n.slice();m[i]=v;const t=score(m);if(t<s){n=m;s=t;imp=true}}}
 for(let i=0;i<av.length;i++)for(let j=0;j<av.length;j++){if(i==j||!n[i]||n[j]>=av[j])continue;
-const mv=Math.min(st,n[i],av[j]-n[j]),m=n.slice();m[i]-=mv;m[j]+=mv;const t=sc(m);if(t<s){n=m;s=t;imp=true}
+const mv=Math.min(st,n[i],av[j]-n[j]),m=n.slice();m[i]-=mv;m[j]+=mv;const t=score(m);if(t<s){n=m;s=t;imp=true}
 // swap k of unit i for about the same attack in unit j (e.g. 4 Clubswingers -> 1 Teutonic Knight, and back)
 if(!att||!n[i]||n[j]>=av[j])continue;
 const k=Math.min(st,n[i]),x=k*att[i]/att[j];
 for(const add of new Set([Math.floor(x),Math.ceil(x)])){
-if(n[i]<k)break; // an earlier swap in this loop already used these units
 const a=Math.min(av[j]-n[j],add);if(a<1||a==k)continue;
-const m2=n.slice();m2[i]-=k;m2[j]+=a;const t2=sc(m2);if(t2<s){n=m2;s=t2;imp=true}}}
-// merge: two units -> one unit of another type in the same wave (e.g. Legionnaire + Praetorian -> Equites Imperatoris);
-// many plans tie on losses, and reaching the smaller one takes two changes at once
-if(st==1)for(let i=0;i<av.length;i++){const w0=i-i%blk;
-for(let j=i;j<w0+blk;j++)for(let k=w0;k<w0+blk;k++){
-if(k==i||k==j||n[k]>=av[k]||(j==i?n[i]<2:!n[i]||!n[j]))continue;
-const m=n.slice();m[i]--;m[j]--;m[k]++;const t=sc(m);if(t<s){n=m;s=t;imp=true}}}
+const m2=n.slice();m2[i]-=k;m2[j]+=a;const t2=score(m2);if(t2<s){n=m2;s=t2;imp=true;break}}}
 }
 }
 return[n,s];
 }
-
 function optimize(av,tol,C,meas){
 const L=av.length,Z=av.map(()=>0),size=n=>sizeOf(n,C,meas);
 const net=n=>{const r=battle(n,C,1);return r?r.net:0};
@@ -378,43 +371,101 @@ for(const st of st2){const[n,sc]=climb(st,s2,av,C.att);if(sc<sc2){sc2=sc;b2=n}}
 return b2;
 }
 
+/* ================= EXACT MAX PROFIT (branch and bound: same answer as checking every force) ================= */
+// A group of forces (a range of counts for each unit type) is skipped only when a proven upper bound on its net can't beat the best force found.
+// Facts used, all from the battle formula above (nothing assumed about which units "make sense"):
+// - net never exceeds the oasis' total bounty (everything killed, nothing lost);
+// - the animals' loss rate depends only on z = e*ln(attack/defence): raid 1/(1+exp(-z)), normal attack min(1,exp(z)); the attacker's mirrors it;
+// - dead = round(sent*rate) >= sent*rate - 0.5, so only about 0.5/rate units of a type can die for free: extra attack costs losses.
+// Pass 1 finds the top net, pass 2 the smallest force within the tolerance. deadline (performance.now() time, 0 = none) stops it early.
+function exactProfit(av,C,tol,meas,seeds,deadline){
+const SL=16,LEAF=24,T=av.length,act=[];for(let i=0;i<T;i++)if(av[i]>0)act.push(i);
+const K=act.length,w=av.map((a,i)=>meas=="upkeep"?C.up[i]:meas=="value"?C.ct[i]:1),anI=[];let maxB=0;
+for(let j=0;j<AN.length;j++)if(C.an[j]>0){anI.push(j);maxB+=C.an[j]*S.val[j]}
+const byCost=act.slice().sort((a,b)=>C.ct[a]/C.att[a]-C.ct[b]/C.att[b]),R=new Array(T),STOP={};
+const eOf=N=>Math.min(1.5,Math.max(1.2578,2*(1.8592-Math.pow(Math.max(N,1),.015))));
+const rates=z=>C.mode=="attack"?[Math.min(1,Math.exp(z)),Math.min(1,Math.exp(-z))]:[1/(1+Math.exp(-z)),1/(1+Math.exp(z))];
+const gainUB=dl=>{let g=0;for(const j of anI)g+=Math.round(C.an[j]*dl+1e-7)*S.val[j];return g};
+let battles=0,boxes=0,stopped=false;
+const tick=()=>{if(++boxes%256==0&&deadline&&performance.now()>deadline)throw STOP};
+const net=n=>{battles++;const r=battle(n,C,1);return r?r.net:-Infinity};
+seeds=(seeds||[]).filter(s=>s&&s.length==T&&s.every((x,i)=>Number.isInteger(x)&&x>=0&&x<=av[i]));
+// least loss with counts in lo..hi and loss rate >= al, if the forces must bring `need` more attack than lo does
+function lossLB(lo,hi,al,need){
+let l=0;for(const t of act){R[t]=Math.round(lo[t]*al-1e-7);l+=R[t]*C.ct[t]}
+if(need<=0)return l;
+const free=t=>Math.max(0,Math.min(hi[t]-lo[t],(R[t]+.5)/al-lo[t]));
+for(const t of act)if(hi[t]>lo[t])need-=free(t)*C.att[t];
+if(need<=0)return l;
+for(const t of byCost){const fr=free(t),cap=(hi[t]-lo[t]-fr)*C.att[t];if(cap<=0)continue;const u=Math.min(cap,need);l+=u/C.att[t]*al*C.ct[t]*(1-1e-9);need-=u;if(need<=0)return l}
+return Infinity}
+// upper bound on net for every force with counts in lo..hi (B: size budget above lo, Infinity in pass 1); may stop early once it reaches bar
+function ub(lo,hi,B,bar){
+let aiL=0,acL=0,aiH=0,acH=0,NL=0,NH=0;
+for(const t of act){const a=C.att[t];if(C.cav[t]){acL+=lo[t]*a;acH+=hi[t]*a}else{aiL+=lo[t]*a;aiH+=hi[t]*a}NL+=lo[t];NH+=hi[t]}
+const AL=aiL+acL;let AH=aiH+acH;
+if(B<Infinity){let ri=0,rc=0,nf=0;
+for(const t of act)if(hi[t]>lo[t]){const d=C.att[t]/w[t];if(C.cav[t])rc=Math.max(rc,d);else ri=Math.max(ri,d);nf+=Math.min(hi[t]-lo[t],Math.floor(B/w[t]+1e-9))}
+aiH=Math.min(aiH,aiL+B*ri);acH=Math.min(acH,acL+B*rc);AH=Math.min(aiH+acH,AL+B*Math.max(ri,rc));NH=Math.min(NH,NL+nf)}
+if(AH<=0)return -Infinity;
+let Dw; // lowest possible weighted defence: the inf/cav share pushed toward the animals' weaker side
+if(acH<=0)Dw=C.di;else if(aiH<=0)Dw=C.dc;
+else if(C.di>=C.dc){const s=aiL/(aiL+acH);Dw=s*C.di+(1-s)*C.dc}else{const s=aiH/(aiH+acL);Dw=s*C.di+(1-s)*C.dc}
+const D=Dw+C.base,e1=eOf(NL+C.dN),e2=eOf(NH+C.dN),zOf=a=>{const q=Math.log(a/D);return Math.max(e1*q,e2*q)+1e-9};
+const[dlH,alH]=rates(zOf(AH)),coarse=gainUB(dlH)-lossLB(lo,hi,alH,0);
+if(coarse<bar||AH<=AL*1.0001)return coarse;
+// slices of total attack [a0,a1]: best rates at a1, and the forces must bring at least a0
+const p0=Math.max(AL,AH*1e-3);let best=-Infinity,a0=AL;
+for(let m=0;m<=SL;m++){const a1=m?p0*Math.pow(AH/p0,m/SL):p0;if(a1<a0)continue;
+const[dl,al]=rates(zOf(a1)),v=gainUB(dl)-lossLB(lo,hi,al,a0-AL);if(v>best){best=v;if(best>=bar)return best}a0=a1}
+return best}
+const vol=(lo,hi)=>{let p=1;for(const t of act)p*=hi[t]-lo[t]+1;return p};
+const points=(lo,hi,fn)=>{const n=lo.slice();for(;;){fn(n);let i=0;for(;i<K;i++){const t=act[i];if(n[t]<hi[t]){n[t]++;break}n[t]=lo[t]}if(i==K)return}};
+const split=(lo,hi)=>{let bt=-1,bw=-1;for(const t of act){const x=(hi[t]-lo[t])*C.att[t];if(x>bw){bw=x;bt=t}}
+const m=(lo[bt]+hi[bt])>>1,h1=hi.slice(),l2=lo.slice();h1[bt]=m;l2[bt]=m+1;return[[lo,h1],[l2,hi]]};
+const Z=av.map(()=>0);
+// pass 1: top net
+let top=0,topN=null;for(const s of seeds){const v=net(s);if(v>top){top=v;topN=s.slice()}}
+function dfs1(lo,hi){tick();if(top>=maxB)return;
+if(vol(lo,hi)<=LEAF){points(lo,hi,n=>{const v=net(n);if(v>top){top=v;topN=n.slice()}});return}
+const kids=split(lo,hi).map(([l,h])=>({l,h,u:ub(l,h,Infinity,top+1e-6)})).sort((a,b)=>b.u-a.u);
+// u only orders the halves: a bound that stopped early proves just "at least the bar it had", so it's recomputed against the current best
+for(const c of kids)if(ub(c.l,c.h,Infinity,top+1e-6)>top)dfs1(c.l,c.h)}
+try{if(K&&top<maxB&&ub(Z,av,Infinity,top+1e-6)>top)dfs1(Z,av.slice())}catch(x){if(x!==STOP)throw x;stopped=true}
+if(top<=0)return{top:0,best:null,proven:!stopped,boxes,battles};
+// pass 2: smallest force (by the chosen measure) with net >= threshold; ties -> higher net
+const thr=top-top*tol/100;let bs=Infinity,bv=-Infinity,best=null;
+const offer=m=>{const v=net(m);if(v>=thr){const s=sizeOf(m,C,meas);if(s<bs||(s==bs&&v>bv)){bs=s;bv=v;best=m.slice()}}};
+offer(topN);for(const s of seeds)offer(s);
+const sLo=lo=>{let s=0;for(const t of act)s+=lo[t]*w[t];return s};
+const dead=(lo,hi)=>{const s=sLo(lo);if(s>bs)return true;const u=ub(lo,hi,bs-s,s==bs?Math.max(thr,bv+1e-6):thr);return u<thr||(s==bs&&u<=bv)};
+function dfs2(lo,hi){tick();
+if(vol(lo,hi)<=LEAF){points(lo,hi,n=>{if(sizeOf(n,C,meas)<=bs)offer(n)});return}
+for(const[l,h]of split(lo,hi))if(!dead(l,h))dfs2(l,h)} // smaller half first
+if(!stopped)try{if(!dead(Z,av))dfs2(Z,av.slice())}catch(x){if(x!==STOP)throw x;stopped=true}
+return{top,best,size:bs,net:bv,proven:!stopped,boxes,battles};
+}
+
 /* ================= CLEAR-OUT PLANNER (raids only) ================= */
 // play a plan (flat array: K waves x T unit types) wave by wave; waves after the oasis is empty are not sent
 // pool "train": all waves leave together, each unit goes once  -> units = total sent
 // pool "vasca": waves go one after another, survivors go again -> units = bodies ever involved
 function playPlan(p,K,av,C,pool,full){
 const T=av.length,sent=av.map(()=>0),dead=av.map(()=>0),bodies=av.map(()=>0),waves=[];
-let an=C.an.slice(),loss=0,gain=0,cleared=!an.some(x=>x>0);
+let an=C.an.slice(),loss=0,cleared=!an.some(x=>x>0);
 for(let k=0;k<K&&!cleared;k++){
 const n=p.slice(k*T,k*T+T);if(!n.some(x=>x>0))continue;
 for(let t=0;t<T;t++){sent[t]+=n[t];bodies[t]=Math.max(bodies[t],n[t]+dead[t]);if((pool=="train"?sent[t]:bodies[t])>av[t])return null}
 const r=battle(n,anCtx(C,an));
 for(let t=0;t<T;t++)dead[t]+=r.dead[t];
-loss+=r.lostT;gain+=r.gain;
+loss+=r.lostT;
 const left=an.map((a,i)=>a-r.killed[i]);
 if(full)waves.push({n,r,left});
 an=left;cleared=!an.some(x=>x>0);
 }
-return{cleared,an,loss,gain,net:gain-loss,units:pool=="train"?sum(sent):sum(bodies),dead,sent,bodies,waves};
+return{cleared,an,loss,units:pool=="train"?sum(sent):sum(bodies),dead,sent,bodies,waves};
 }
-// a clearing plan is only worth recommending if the bounty is worth more than the troops lost
-const profClear=q=>!!q&&q.cleared&&q.net>0;
-// exact best single wave (lowest losses, then fewest units) when the combinations are few;
-// the local search alone can stall where many plans tie on losses
-function bestWave(av,C){
-let combos=1;for(const a of av){combos*=a+1;if(combos>EXACT)return null}
-const L=av.length,n=av.map(()=>0);let best=null,bl=Infinity,bu=Infinity;
-for(let k=1;k<combos;k++){
-for(let i=0;i<L;i++){if(n[i]<av[i]){n[i]++;break}n[i]=0}
-const u=sum(n);if(bl==0&&u>=bu)continue; // can't beat a lossless plan with as many units
-const r=battle(n,C);if(!r||r.killed.some((x,i)=>x<C.an[i]))continue;
-if(r.lostT<bl||(r.lostT==bl&&u<bu)){bl=r.lostT;bu=u;best=n.slice()}
-}
-return best;
-}
-// finds the plan that clears the oasis with the lowest losses, then the fewest units; adds waves while they help.
-// Clearing always earns the full bounty, so the lowest-loss plan is also the most profitable one;
-// whether it is profitable at all (net above zero) is checked by the callers with profClear.
+// finds the plan that clears the oasis with the lowest losses, then the fewest units; adds waves while they help
 function clearPlan(av,C,pool){
 const T=av.length,Z=av.map(()=>0);
 if(!C.an.some(x=>x>0)||!av.some(x=>x>0))return null;
@@ -432,8 +483,8 @@ if(!an.some(x=>x>0)||!n.some(x=>x>0))continue;
 const r=battle(n,anCtx(C,an));for(let t=0;t<T;t++){sent[t]+=n[t];dead[t]+=r.dead[t]}an=an.map((a,i)=>a-r.killed[i]);
 }
 return p};
-// seed: exact best single wave when feasible; otherwise the smallest single wave (strongest units first) that clears the oasis
-let seed1=bestWave(av,C);const ord=av.map((a,i)=>i).filter(i=>av[i]>0).sort((a,b)=>C.att[b]-C.att[a]),tot=sum(av);
+// seed: smallest single wave (strongest units first) that clears the oasis
+let seed1=null;const ord=av.map((a,i)=>i).filter(i=>av[i]>0).sort((a,b)=>C.att[b]-C.att[a]),tot=sum(av);
 for(let k=1;k<=60&&!seed1;k++){let c=Math.max(1,Math.round(tot*Math.pow(k/60,2)));const n=Z.slice();for(const i of ord){const t=Math.min(av[i],c);n[i]=t;c-=t}
 const q=playPlan(n,1,av,C,pool);if(q&&q.cleared)seed1=n}
 let best=null,bs=Infinity,bK=0,miss=0;
@@ -444,11 +495,111 @@ const starts=[.85,.6,.35].map(fr=>build(K,fr));
 if(best)starts.push(pad(best,bK));if(seed1)starts.push(pad(seed1,1));
 const seen=new Set();let kb=null,ks=Infinity;
 for(const st of starts){const key=st.join();if(seen.has(key)||sc(st)==Infinity)continue;seen.add(key);
-const[n,s]=climb(st.slice(),sc,avP,attP,T);if(s<ks){ks=s;kb=n}}
+const[n,s]=climb(st.slice(),sc,avP,attP);if(s<ks){ks=s;kb=n}}
 if(ks<bs){bs=ks;best=kb;bK=K;miss=0}else miss++; // stop after two extra waves that don't help
 }
 return{K:bK,plan:best,res:playPlan(best,bK,av,C,pool,true)};
 }
+
+/* ================= EXACT CLEAR-OUT (branch and bound: same answer as checking every sequence of waves) ================= */
+// Best plan with up to Kmax waves that clears the oasis: fewest losses, then fewest units (train: units sent, vasca: bodies involved).
+// Cuts used, all proven from the battle formula (nothing assumed about which plans "make sense"):
+// - per wave, a range of forces gives a ceiling on animals killed and a floor on losses (same bounds as exactProfit);
+// - a wave that kills nothing is never useful (dropping it costs nothing and frees units);
+// - the last allowed wave must kill everything left, which needs a minimum animal loss rate;
+// - fewer animals never make a one-wave clear more expensive, so with one wave left the cost of clearing
+//   "at least what is surely left" is a floor on the rest of the plan.
+// Solves 1 wave, then 2, ... up to Kmax (each best plan starts the next). onProg({s,plan,doneK,boxes,battles}) reports progress.
+function exactClear(av,C,pool,Kmax,seeds,deadline,onProg){
+const train=pool=="train",T=av.length,act=[];for(let i=0;i<T;i++)if(av[i]>0)act.push(i);
+let U1=1;for(const a of av)U1+=a;
+const SL=16,LEAF=24,STOP={},R=new Array(T),Z=av.map(()=>0),NA=AN.length;
+const byCost=act.slice().sort((a,b)=>C.ct[a]/C.att[a]-C.ct[b]/C.att[b]);
+const eOf=N=>Math.min(1.5,Math.max(1.2578,2*(1.8592-Math.pow(Math.max(N,1),.015))));
+const inc={s:Infinity,plan:null};let boxes=0,battles=0,stopped=false,doneK=0,lastProg=0;
+const prog=()=>{if(onProg){lastProg=performance.now();onProg({s:inc.s,plan:inc.plan,doneK,boxes,battles})}};
+const tick=()=>{if(++boxes%256==0){const now=performance.now();if(deadline&&now>deadline)throw STOP;if(onProg&&now-lastProg>300)prog()}};
+const anyPos=a=>{for(let i=0;i<a.length;i++)if(a[i]>0)return true;return false};
+const mk=(an,sent,dead,bodies,loss,units,tr)=>({an,sent,dead,bodies,loss,units,tr,C:anCtx(C,an),lim:av.map((a,t)=>Math.max(0,tr?a-sent[t]:a-dead[t]))});
+// least loss with counts in lo..hi when units die at rate >= al and the wave must bring `need` more attack than lo does
+function lossLB(lo,hi,al,need){
+let l=0;for(const t of act){R[t]=Math.round(lo[t]*al-1e-7);l+=R[t]*C.ct[t]}
+if(need<=0)return l;
+const free=t=>Math.max(0,Math.min(hi[t]-lo[t],(R[t]+.5)/al-lo[t]));
+for(const t of act)if(hi[t]>lo[t])need-=free(t)*C.att[t];
+if(need<=0)return l;
+for(const t of byCost){const fr=free(t),cap=(hi[t]-lo[t]-fr)*C.att[t];if(cap<=0)continue;const u=Math.min(cap,need);l+=u/C.att[t]*al*C.ct[t]*(1-1e-9);need-=u;if(need<=0)return l}
+return Infinity}
+// cheapest single wave (losses*U1 + units sent) that clears `an` with at most `lim` troops
+const oneCache=new Map();
+function oneWave(an,lim){
+const key=an.join()+"|"+lim.join();let v=oneCache.get(key);if(v!==undefined)return v;
+const o={s:Infinity,plan:null};waves(mk(an.slice(),av.map((a,t)=>a-lim[t]),Z.slice(),Z.slice(),0,0,true),0,1,o,[]);
+oneCache.set(key,o.s);return o.s}
+// lower bound on the final score of any plan whose wave k (0-based, at most Kmx waves) is a force in lo..hi
+function lb(st,k,Kmx,lo,hi){
+const c=st.C,last=k==Kmx-1;let aiL=0,acL=0,aiH=0,acH=0,NL=0,NH=0,sumLo=0,attRoom=0;
+for(const t of act){const a=C.att[t];if(C.cav[t]){acL+=lo[t]*a;acH+=hi[t]*a}else{aiL+=lo[t]*a;aiH+=hi[t]*a}NL+=lo[t];NH+=hi[t];sumLo+=lo[t];if(hi[t]>lo[t])attRoom=Math.max(attRoom,a)}
+const AL=aiL+acL,AH=aiH+acH;if(AH<=0)return Infinity;
+let Dw;if(acH<=0)Dw=c.di;else if(aiH<=0)Dw=c.dc;
+else if(c.di>=c.dc){const s=aiL/(aiL+acH);Dw=s*c.di+(1-s)*c.dc}else{const s=aiH/(aiH+acL);Dw=s*c.di+(1-s)*c.dc}
+const D=Dw+c.base,e1=eOf(NL+c.dN),e2=eOf(NH+c.dN);
+let uV=0;if(!st.tr)for(const t of act)uV+=Math.max(st.bodies[t],lo[t]+st.dead[t]);
+const p0=Math.max(AL,AH*1e-3),left=new Array(NA);let best=Infinity,a0=AL;
+for(let m=0;m<=SL;m++){const a1=m?p0*Math.pow(AH/p0,m/SL):p0;if(a1<a0)continue;
+const q=Math.log(a1/D),z=Math.max(e1*q,e2*q)+1e-9,dl=1/(1+Math.exp(-z)),al=1/(1+Math.exp(z));
+let kills=false,clears=true;
+for(let j=0;j<NA;j++){const n=st.an[j];if(!n){left[j]=0;continue}const k2=Math.min(n,Math.round(n*dl+1e-7));left[j]=n-k2;if(k2>0)kills=true;if(k2<n)clears=false}
+const need=a0-AL;a0=a1;
+if(!kills||(last&&!clears))continue; // kills nothing / last allowed wave can't clear
+const lw=lossLB(lo,hi,al,need);if(lw==Infinity)continue;
+let v=(st.loss+lw)*U1+(st.tr?st.units+sumLo+(need>0&&attRoom?need/attRoom:0):uV);
+if(!clears){ // something must still be cleared later
+if(k+1==Kmx-1){const r=oneWave(left,av.map((a,t)=>a-(st.tr?st.sent[t]:st.dead[t])));if(r==Infinity)continue;v+=st.tr?r:Math.floor(r/U1)*U1}
+else if(st.tr)v+=1}
+if(v<best)best=v}
+return best}
+const vol=(lo,hi)=>{let p=1;for(const t of act)p*=hi[t]-lo[t]+1;return p};
+const split=(lo,hi)=>{let bt=-1,bw=-1;for(const t of act){const x=(hi[t]-lo[t])*C.att[t];if(x>bw){bw=x;bt=t}}
+const m=(lo[bt]+hi[bt])>>1,h1=hi.slice(),l2=lo.slice();h1[bt]=m;l2[bt]=m+1;return[[lo,h1],[l2,hi]]};
+// every force for wave k from state st; updates o with clearing plans that beat it
+function waves(st,k,Kmx,o,path){
+const leaf=n=>{
+if(!anyPos(n))return;battles++;
+const r=battle(n,st.C),an=new Array(NA);let cleared=true,kill=false;
+for(let j=0;j<NA;j++){an[j]=st.an[j]-r.killed[j];if(an[j]>0)cleared=false;if(r.killed[j]>0)kill=true}
+const sent=st.sent.map((x,t)=>x+n[t]),dead=st.dead.map((x,t)=>x+r.dead[t]),bodies=st.bodies.map((x,t)=>Math.max(x,n[t]+st.dead[t]));
+let units=0;for(let t=0;t<T;t++)units+=st.tr?sent[t]:bodies[t];
+const loss=st.loss+r.lostT,s=loss*U1+units;
+if(cleared){if(s<o.s){o.s=s;o.plan=path.concat([n.slice()])}return}
+if(k+1>=Kmx||s>=o.s||!kill)return;
+path.push(n.slice());waves(mk(an,sent,dead,bodies,loss,units,st.tr),k+1,Kmx,o,path);path.pop()};
+const box=(lo,hi)=>{tick();
+if(vol(lo,hi)<=LEAF){const n=lo.slice();for(;;){leaf(n);let i=0;for(;i<act.length;i++){const t=act[i];if(n[t]<hi[t]){n[t]++;break}n[t]=lo[t]}if(i==act.length)return}}
+const kids=split(lo,hi).map(([l,h])=>({l,h,b:lb(st,k,Kmx,l,h)})).sort((a,b)=>a.b-b.b);
+for(const c of kids)if(c.b<o.s)box(c.l,c.h)};
+if(lb(st,k,Kmx,Z,st.lim)<o.s)box(Z.slice(),st.lim.slice())}
+// seeds: plans (arrays of waves) known to work
+for(const p of seeds||[]){if(!p||!p.length||p.length>Kmax)continue;let st=mk(C.an.slice(),Z.slice(),Z.slice(),Z.slice(),0,0,train),ok=true;
+for(const n of p){if(!anyPos(n)||n.some((x,t)=>!Number.isInteger(x)||x<0||x>st.lim[t])){ok=false;break}
+const r=battle(n,st.C),an=st.an.map((a,j)=>a-r.killed[j]),sent=st.sent.map((x,t)=>x+n[t]),dead=st.dead.map((x,t)=>x+r.dead[t]),bodies=st.bodies.map((x,t)=>Math.max(x,n[t]+st.dead[t]));
+let u=0;for(let t=0;t<T;t++)u+=train?sent[t]:bodies[t];st=mk(an,sent,dead,bodies,st.loss+r.lostT,u,train)}
+if(ok&&!anyPos(st.an)){const s=st.loss*U1+st.units;if(s<inc.s){inc.s=s;inc.plan=p.map(n=>n.slice())}}}
+try{if(act.length&&anyPos(C.an))for(let kk=1;kk<=Kmax;kk++){waves(mk(C.an.slice(),Z.slice(),Z.slice(),Z.slice(),0,0,train),0,kk,inc,[]);doneK=kk;prog()}}
+catch(x){if(x!==STOP)throw x;stopped=true}
+return{s:inc.s,plan:inc.plan,loss:inc.plan?Math.floor(inc.s/U1):null,units:inc.plan?inc.s%U1:null,proven:!stopped,doneK,boxes,battles};
+}
+
+/* ================= SHARED HELPERS ================= */
+const prodP1=a=>a.reduce((p,x)=>p*(x+1),1);
+const fBig=x=>!isFinite(x)?"∞":x<1e12?f(x):x.toExponential(2);
+const fmtDur=s=>{if(!isFinite(s))return"∞";if(s<1){const m=s*1000;return(m<10?m.toFixed(1):Math.round(m))+" ms"}
+if(s<60)return s.toFixed(1)+" s";if(s<3600)return Math.floor(s/60)+" m "+Math.floor(s%60)+" s";
+if(s<86400)return Math.floor(s/3600)+" h "+Math.floor(s%3600/60)+" m";if(s<31557600)return(s/86400).toFixed(1)+" days";
+const y=s/31557600;return(y<1e6?y.toFixed(1):y.toExponential(1))+" years"};
+const htile=(l,v)=>"<div><b>"+v+"</b>"+l+"</div>";
+const uList=(n,U)=>U.map((u,i)=>n[i]?n[i]+" "+ab(u[0]):"").filter(Boolean).join(" · ")||"nothing";
+const hcK=()=>Math.min(MAXW,Math.max(1,Math.round(+S.hcW||2)));
 
 /* ================= DISTANCE & TRAVEL TIME (display only) ================= */
 const curV=()=>S.villages.find(v=>v.id==S.vil)||null;
@@ -538,6 +689,7 @@ $("cmpN").textContent=S.oases.length;
 }
 function compare(){
 const box=$("cmpBox"),el=$("cmp");if(!box.open||S.simple)return;
+el.classList.remove("stale");
 const av=nArr(),U=TR[S.tribe],v=curV();
 if(!S.oases.length){el.innerHTML="<p class=mu>No saved oases yet. Paste an oasis page above to save one.</p>";return}
 if(!av.some(x=>x>0)){el.innerHTML="<p class=mu>Enter your available troops in section 1 to compare.</p>";return}
@@ -552,18 +704,25 @@ return "<tr"+(o.id==S.cur?" style='background:var(--ac-soft)'":"")+"><td><b>"+la
 :"<td colspan=4 class=neg style='text-align:left'>Not profitable</td>")+
 "<td><button class='ghost small' data-act=load data-id='"+esc(o.id)+"'>Load</button></td></tr>"}).join("")+"</table></div>";
 }
+let CMPQ=null;
 function compareClear(el,av,U,v){
-const keep=S.an,train=S.pool=="train";let rows;
-try{rows=S.oases.map(o=>{S.an=o.an;return{o,P:o.an.some(x=>x>0)?clearPlan(av,ctx("raid"),S.pool):null}})}finally{S.an=keep}
-// profitable clears first (losses, then units), then unprofitable clears (by net), then oases you can't clear, then empty ones
-const key=r=>{const q=r.P&&r.P.res;return !q?4e15:!q.cleared?3e15+sum(q.an):q.net<=0?2e15-q.net:q.loss*1e6+q.units};
+const keep=S.an,train=S.pool=="train",jobs=[];
+try{S.oases.forEach(o=>{S.an=o.an;jobs.push(o.an.some(x=>x>0)?{av:av.slice(),C:ctx("raid"),pool:S.pool}:null)})}finally{S.an=keep}
+const ck=JSON.stringify([jobs,S.val]);
+if(!CMPQ||CMPQ.key!=ck){
+if(!el.innerHTML.trim())el.innerHTML="<p class=mu>⏳ Planning…</p>";
+el.classList.add("stale");const real=jobs.filter(Boolean);
+QW2.run(real,out=>{if(!out)out=real.map(j=>clearPlan(j.av,j.C,j.pool));let k=0;CMPQ={key:ck,plans:jobs.map(j=>j?out[k++]:null)};if($("cmpBox").open&&S.goal=="clear"&&!S.simple)compare()});
+return}
+el.classList.remove("stale");
+const rows=S.oases.map((o,i)=>({o,P:CMPQ.plans[i]}));
+const key=r=>!r.P?4e15:!r.P.res.cleared?3e15+sum(r.P.res.an):r.P.res.loss*1e6+r.P.res.units;
 rows.sort((p,q)=>key(p)-key(q));
-el.innerHTML="<p class=mu style='margin-top:0'>Ranked by losses, then units, among the oases you can clear at a profit with your current troops ("+(train?"🚂 train":"🔁 vasca")+"). "+(v?"Distances from <b>"+vlab(v)+"</b>.":"Set a starting village in section 1 for exact distances.")+" Time is one way, set by the slowest unit sent.</p><div class=w><table><tr><th>Oasis</th><th>Animals</th><th>Dist</th><th>Waves</th><th>Units</th><th>Dead</th><th>Losses</th><th>Net</th><th>⏱ One way</th><th></th></tr>"+
-rows.map(({o,P})=>{const d=oDist(o),lk=oLink(o),q=P&&P.res,ok=profClear(q),inv=q?(train?q.sent:q.bodies):null,tt=ok?travel(inv,d):null;
-const why=!P?"No animals":!q.cleared?"Can't clear with your troops":"Not profitable: losses "+f(q.loss)+" vs bounty "+f(q.gain)+" (net "+sg(q.net)+")";
+el.innerHTML="<p class=mu style='margin-top:0'>Ranked by losses, then units, to clear each oasis with your current troops ("+(train?"🚂 train":"🔁 vasca")+"). "+(v?"Distances from <b>"+vlab(v)+"</b>.":"Set a starting village in section 1 for exact distances.")+" Time is one way, set by the slowest unit sent.</p><div class=w><table><tr><th>Oasis</th><th>Animals</th><th>Dist</th><th>Waves</th><th>Units</th><th>Dead</th><th>Losses</th><th>⏱ One way</th><th></th></tr>"+
+rows.map(({o,P})=>{const d=oDist(o),lk=oLink(o),q=P&&P.res,ok=q&&q.cleared,inv=q?(train?q.sent:q.bodies):null,tt=ok?travel(inv,d):null;
 return "<tr"+(o.id==S.cur?" style='background:var(--ac-soft)'":"")+"><td><b>"+lab(o)+"</b>"+(lk?" "+lk:"")+"<small>"+(o.name&&o.x!=null?coords(o)+" · ":"")+(o.bonus?o.bonus+" · ":"")+ago(o.t)+"</small></td><td>"+anSum(o.an)+"</td><td>"+fd(d)+"</td>"+
-(ok?"<td>"+q.waves.map(w=>U.map((u,i)=>w.n[i]?w.n[i]+" "+ab(u[0]):"").filter(Boolean).join(" · ")).join(" → ")+"</td><td>"+f(q.units)+"</td><td>"+(U.map((u,i)=>q.dead[i]?q.dead[i]+" "+ab(u[0]):"").filter(Boolean).join(" · ")||"none")+"</td><td>"+f(q.loss)+"</td><td>"+sg(q.net)+"</td><td>"+(tt?fmtT(tt.sec):"–")+"</td>"
-:"<td colspan=6 class=neg style='text-align:left'>"+why+"</td>")+
+(ok?"<td>"+q.waves.map(w=>U.map((u,i)=>w.n[i]?w.n[i]+" "+ab(u[0]):"").filter(Boolean).join(" · ")).join(" → ")+"</td><td>"+f(q.units)+"</td><td>"+(U.map((u,i)=>q.dead[i]?q.dead[i]+" "+ab(u[0]):"").filter(Boolean).join(" · ")||"none")+"</td><td>"+f(q.loss)+"</td><td>"+(tt?fmtT(tt.sec):"–")+"</td>"
+:"<td colspan=5 class=neg style='text-align:left'>"+(P?"Can't clear with your troops":"No animals")+"</td>")+
 "<td><button class='ghost small' data-act=load data-id='"+esc(o.id)+"'>Load</button></td></tr>"}).join("")+"</table></div>";
 }
 
@@ -602,6 +761,7 @@ document.querySelectorAll("#poolSw button").forEach(b=>b.classList.toggle("on",b
 function smUI(){const set=sArr().some(x=>x>0);$("smBtn").textContent=(S.smOpen?"▴ Hide Smithy levels":"🔨 Smithy levels ▾")+(set?" · set":"")}
 function build(){
 $("tribe").value=S.tribe;$("tol").value=S.tol;$("mode").value=S.mode;$("meas").value=S.meas;$("base").value=S.base;$("speed").value=S.speed;$("msize").value=S.msize;$("server").value=S.server||"";
+$("hcW").value=hcK();
 const U=TR[S.tribe],n=nArr(),s=sArr(),c=cArr(),m=mArr(),sp=spdArr(),H=U.map(uh);
 $("troops").innerHTML="<div class=w><table class=bar><tr><th></th>"+H.join("")+"</tr>"+
 "<tr><td>Available</td>"+U.map((u,i)=>"<td>"+inp("n",i,n[i])+"</td>").join("")+"</tr>"+
@@ -626,30 +786,36 @@ return "<div class=w><table><tr><th>Scenario</th><th>Troops</th><th>Attack</th><
 }
 function showClear(){
 const U=TR[S.tribe],av=nArr(),el=$("res");lastBest=null;
-if(!av.some(x=>x>0)||!S.an.some(x=>x>0)){el.innerHTML="<p class=mu>Enter your available troops and the oasis animals above to see the clear-out plan.</p>";return}
-const C=ctx("raid"),P=clearPlan(av,C,S.pool),q=P.res,W=q.waves,train=S.pool=="train",o=curO(),d=oDist(o);
-const nm=o?" "+lab(o):"";
-// clearing is possible but costs more than the animals are worth: don't recommend it
-if(q.cleared&&!profClear(q)){
-const lostN=sum(q.dead);
-el.innerHTML="<div class='verdict bad'>❌ <b>Don't clear"+nm+": it isn't profitable.</b><span class=mu>The cheapest plan found loses "+f(q.loss)+" in troops ("+f(lostN)+" unit"+(lostN==1?"":"s")+" dead), but the animals are only worth "+f(q.gain)+" · net "+sg(q.net)+"</span></div>"+
-"<p class=mu>Cheapest plan, for reference: "+W.map((w,k)=>"wave "+(k+1)+": "+U.map((u,i)=>w.n[i]?w.n[i]+" "+esc(u[0]):"").filter(Boolean).join(", ")).join(" → ")+". More or stronger troops, or Smithy upgrades, may make clearing profitable.</p>";
-return;
-}
+if(!av.some(x=>x>0)||!S.an.some(x=>x>0)){cxStop();QW.cancel();el.classList.remove("stale");el.innerHTML="<p class=mu>Enter your available troops and the oasis animals above to see the clear-out plan.</p>";return}
+const C0=ctx("raid"),sig0=cxSig();
+if(!CX.quick||CX.quick.sig!=sig0){
+if(CX.busy&&CX.busy.sig!=sig0)cxStop();
+if(!el.innerHTML.trim())el.innerHTML="<p class=mu>⏳ Planning…</p>";
+el.classList.add("stale");
+QW.run([{av:av.slice(),C:C0,pool:S.pool}],out=>{if(cxSig()!=sig0)return;CX.quick={sig:sig0,P:out?out[0]:clearPlan(av,C0,S.pool)};if(S.goal=="clear")show()});
+return}
+el.classList.remove("stale");
+const C=C0,P=CX.quick.P,train=S.pool=="train",o=curO(),d=oDist(o),K=hcK(),sig=cxSig(),U1=sum(av)+1;
+const qr=P.res,qs=qr.cleared?qr.loss*U1+qr.units:Infinity,have=CX.sig==sig&&CX.res&&!CX.res.err;
+if(CX.busy&&CX.busy.sig!=sig)cxStop(); // inputs changed: the running search is for old ones
+let q=qr,src="quick";
+if(have&&CX.res.plan&&CX.res.s<=qs){q=playPlan(CX.res.plan.flat(),CX.res.plan.length,av,C,S.pool,true);src="exact"}
+const W=q.waves,cxl=cxLine(qr,q,src,K,U1);
 const H=U.map(uh),aIdx=AN.map((a,i)=>i).filter(i=>S.an[i]),inv=train?q.sent:q.bodies,lostN=sum(q.dead),aTot=sum(S.an),aLeft=sum(q.an);
 const agg={gain:0,lostT:0,lost:[0,0,0,0]};
 W.forEach(w=>{agg.gain+=w.r.gain;agg.lostT+=w.r.lostT;w.r.lost.forEach((v,k)=>agg.lost[k]+=v)});agg.net=agg.gain-agg.lostT;
 const tt=W.length?travel(inv,d):null;
 const tline=tt?"⏱ "+fmtT(tt.sec)+" one way · "+(train?"all waves leave together, back in "+fmtT(tt.sec*2):W.length+" round trip"+(W.length>1?"s":"")+" ≈ "+fmtT(tt.sec*2*W.length)+" in total")+" · "+fd(d)+" fields · slowest: "+esc(tt.who):"";
+const nm=o?" "+lab(o):"";
 lastBest=W.length?W[0].n.slice():null;
-lastText="Clear"+(o?" "+(o.name||"("+o.x+"|"+o.y+")"):"")+" ("+(train?"train":"vasca")+"): "+W.map((w,k)=>"W"+(k+1)+" "+U.map((u,i)=>w.n[i]?u[0]+" "+w.n[i]:"").filter(Boolean).join(", ")).join(" → ")+" | expected dead: "+(U.map((u,i)=>q.dead[i]?u[0]+" "+q.dead[i]:"").filter(Boolean).join(", ")||"none")+" | losses "+f(q.loss)+" | net "+(q.net>=0?"+":"-")+f(Math.abs(q.net))+(tt?" | "+fmtT(tt.sec)+" one way":"")+(oUrl(o)?" | "+oUrl(o):"");
+lastText="Clear"+(o?" "+(o.name||"("+o.x+"|"+o.y+")"):"")+" ("+(train?"train":"vasca")+"): "+W.map((w,k)=>"W"+(k+1)+" "+U.map((u,i)=>w.n[i]?u[0]+" "+w.n[i]:"").filter(Boolean).join(", ")).join(" → ")+" | expected dead: "+(U.map((u,i)=>q.dead[i]?u[0]+" "+q.dead[i]:"").filter(Boolean).join(", ")||"none")+" | losses "+f(q.loss)+(tt?" | "+fmtT(tt.sec)+" one way":"")+(oUrl(o)?" | "+oUrl(o):"");
 const tr=[];W.forEach((w,k)=>{tr.push(["Wave "+(k+1),w.n,"send"]);tr.push(["Dead",w.r.dead,"dead"])});
 tr.push([train?"Total sent":"Involved",inv]);tr.push(["Not used",av.map((a,i)=>a-inv[i])]);
 const ar=[["In oasis",aIdx.map(i=>S.an[i])]];W.forEach((w,k)=>ar.push(["Killed w"+(k+1),aIdx.map(i=>w.r.killed[i]),"kill"]));ar.push(["Left",aIdx.map(i=>q.an[i])]);
 el.innerHTML=
 (q.cleared
-?"<div class='verdict ok'>🧹 <b>Clear"+nm+" in "+W.length+" wave"+(W.length>1?"s":"")+" with "+f(q.units)+" units</b> → "+(q.loss?"losses "+f(q.loss)+" ("+f(lostN)+" unit"+(lostN>1?"s":"")+" dead)":"no losses")+" · net "+sg(q.net)+(tline?"<span class=mu>"+tline+"</span>":"")+"</div>"
-:"<div class='verdict bad'>❌ <b>Your troops can't clear"+nm+".</b> The best plan found still leaves "+f(aLeft)+" of "+f(aTot)+" animals.</div>")+
+?"<div class='verdict ok'>🧹 <b>Clear"+nm+" in "+W.length+" wave"+(W.length>1?"s":"")+" with "+f(q.units)+" units</b> → "+(q.loss?"losses "+f(q.loss)+" ("+f(lostN)+" unit"+(lostN>1?"s":"")+" dead)":"no losses")+(tline?"<span class=mu>"+tline+"</span>":"")+"</div>"
+:"<div class='verdict bad'>❌ <b>Your troops can't clear"+nm+".</b> The best plan found still leaves "+f(aLeft)+" of "+f(aTot)+" animals.</div>")+cxl+
 (W.length?
 "<div class=rec><div class=rec-head><div><span class=badge>Raids</span><b>"+(train?"🚂 Train":"🔁 Vasca")+": troops per wave</b></div>"+
 "<div class=row style='margin:0'>"+(oUrl(o)?oLink(o,"Open oasis ↗"):"")+"<button class='ghost small' data-act=copy id=copyBtn>📋 Copy</button><button class='small full' data-act=use>Wave 1 to simulator ↓</button></div></div>"+
@@ -657,7 +823,6 @@ bar(H,tr)+"</div>"+bar(aIdx.map(ah),ar):"")+
 "<div class=full>"+
 "<div class=kpi>"+
 "<div class=hl><b>"+f(q.loss)+"</b>Resources Lost</div>"+
-"<div><b>"+sg(q.net)+"</b>Net Profit</div>"+
 "<div><b>"+f(q.units)+"</b>Units "+(train?"Sent":"Involved")+"</div>"+
 "<div><b>"+f(lostN)+"</b>Units Dead</div>"+
 "<div><b>"+W.length+"</b>Waves</div>"+
@@ -665,18 +830,160 @@ bar(H,tr)+"</div>"+bar(aIdx.map(ah),ar):"")+
 (W.length?resTable(agg)+"<h3>Waves</h3>"+W.map((w,k)=>"<p class=mu>Wave "+(k+1)+": attack <b>"+f(w.r.A)+"</b> vs defence <b>"+f(w.r.D)+"</b> ("+(w.r.win?"attacker wins":"attacker loses")+") · your loss rate "+(w.r.al*100).toFixed(1)+"% · animal loss rate "+(w.r.dl*100).toFixed(1)+"% (before rounding)</p>").join(""):"")+
 "</div>";
 }
+/* ================= DEEP SEARCH (exact, on demand) ================= */
+// Editing only recomputes the instant quick answer. "🔎 Deep search" runs the exact search (exactProfit / exactClear) in a background
+// worker built from this page's own code, so the page stays a single file and responsive; the proven answer then replaces the quick one.
+// Stop at any time. If the browser blocks workers, the search runs here with a short time limit.
+const DEEP_IN=3000; // time limit of the in-page fallback
+const wvs=n=>n+" wave"+(n>1?"s":"");
+const errMsg=x=>String(x&&x.message||x);
+
+// ---- Max profit
+const EX={sig:null,res:null,busy:null,job:0,w:null,url:null,quick:null};
+const exSig=()=>JSON.stringify([S.tribe,nArr(),sArr(),cArr(),S.an,S.val,S.base,S.mode,S.tol,S.meas]);
+function exWorker(){
+if(EX.w===false)return null;if(EX.w)return EX.w;
+try{
+if(!EX.url)EX.url=URL.createObjectURL(new Blob(["const AN="+JSON.stringify(AN)+",S={val:[]},sizeOf="+sizeOf+";\n"+battle+"\n"+exactProfit+
+"\nonmessage=e=>{const d=e.data;S.val=d.val;const t=performance.now();let r;try{r=exactProfit(d.av,d.C,d.tol,d.meas,d.seeds,0)}catch(x){r={err:String(x&&x.message||x)}}r.ms=performance.now()-t;r.id=d.id;postMessage(r)}"],{type:"text/javascript"}));
+EX.w=new Worker(EX.url);
+EX.w.onmessage=e=>exDone(e.data);
+EX.w.onerror=e=>{if(e&&e.preventDefault)e.preventDefault();try{EX.w.terminate()}catch(x){}EX.w=false;const b=EX.busy;if(b){EX.busy=null;exStart(b.msg)}};
+}catch(e){EX.w=false;return null}
+return EX.w;
+}
+function exStop(){if(EX.busy&&EX.w){EX.w.terminate();EX.w=null}EX.busy=null}
+function exStart(msg){
+const sig=exSig();if(EX.busy&&EX.busy.sig==sig)return;
+exStop();const id=++EX.job,W=exWorker();msg.id=id;EX.busy={sig,id,msg,inline:!W};
+if(W)W.postMessage(msg);
+else setTimeout(()=>{if(!EX.busy||EX.busy.id!=id)return;const t=performance.now();let r;
+try{r=exactProfit(msg.av,msg.C,msg.tol,msg.meas,msg.seeds,t+DEEP_IN)}catch(x){r={err:errMsg(x)}}r.ms=performance.now()-t;r.id=id;exDone(r)},30);
+}
+function exDone(r){
+const b=EX.busy;if(!b||r.id!=b.id)return;EX.busy=null;
+r.q=b.msg.seeds[0];r.inline=b.inline;EX.sig=b.sig;EX.res=r;
+if(S.goal!="clear"&&exSig()==b.sig)show();
+}
+// quick estimate for the current inputs (cached, so redraws don't recompute it)
+function exQuick(av,C){const sig=exSig();if(!EX.quick||EX.quick.sig!=sig)EX.quick={sig,best:optimize(av,S.tol,C,S.meas)};return EX.quick.best}
+function exRun(){const av=nArr(),C=ctx();if(!av.some(x=>x>0)||!S.an.some(x=>x>0))return;const q=exQuick(av,C);
+exStart({av:av.slice(),C,tol:S.tol,meas:S.meas,seeds:[q.slice(),av.slice()],val:S.val.slice()});show()}
+// status line under the verdict
+function exLine(av,C,best){
+const sig=exSig();
+if(EX.busy&&EX.busy.sig==sig)return"<p class=mu>🔎 Deep search: checking every force you could send… <button class='ghost small' data-act=ex-stop>■ Stop</button></p>";
+const r=EX.sig==sig&&EX.res;
+if(!r)return"<p class=mu><button class=small data-act=ex-run>🔎 Deep search</button> This is a quick estimate. Deep search checks every force you could send and replaces it with the proven best.</p>";
+if(r.err)return"<p class=mu>⚠️ The deep search failed ("+esc(r.err)+"), so this is the quick estimate.</p>";
+const tot=prodP1(av),q=r.q,qr=q&&q.some(x=>x>0)?battle(q,C):null,qn=qr?qr.net:0,br=best.some(x=>x>0)?battle(best,C):null;
+let d="";
+if(br&&br.net>0){const bs=sizeOf(best,C,S.meas),qs=qr?sizeOf(q,C,S.meas):Infinity,thr=r.top-r.top*S.tol/100,mu={units:"units",upkeep:"crop upkeep",value:"training value"}[S.meas];
+if(!qr||qn<thr)d=" ⚡ Better than the quick estimate"+(qr&&qn>0?" (net "+sg(qn)+")":", which found no profitable force")+".";
+else if(bs<qs)d=" ⚡ Smaller than the quick estimate ("+f(bs)+" vs "+f(qs)+" "+mu+")."}
+if(r.proven&&!br)return"<p class=mu>✅ <b>Proven</b>: none of the "+fBig(tot)+" possible forces makes a profit (checked in "+fmtDur(r.ms/1000)+").</p>";
+if(r.proven)return"<p class=mu>✅ <b>Proven best</b>: all "+fBig(tot)+" possible forces covered in "+fmtDur(r.ms/1000)+" ("+fBig(r.battles)+" battles simulated, the rest ruled out by bounds)."+d+"</p>";
+return"<p class=mu>⏱ Stopped after "+fmtDur(r.ms/1000)+" (your browser blocked the background search): best force found, at least as good as the quick estimate, but not proven."+d+"</p>";
+}
+
+// ---- Quick clear plans off the main thread: the quick planner takes ~50–300 ms, so typing stays smooth.
+// run(jobs, cb): cb(plans) with one clearPlan result per job, or cb(null) if workers are blocked (the caller then computes here).
+let QURL=null;
+function quickWorker(){
+const Q={w:null,id:0,cb:null};
+const url=()=>QURL||(QURL=URL.createObjectURL(new Blob(["const AN="+JSON.stringify(AN)+",MAXW="+MAXW+",S={val:[]},sum=a=>a.reduce((x,y)=>x+y,0);\n"+battle+"\n"+anCtx+"\n"+climb+"\n"+playPlan+"\n"+clearPlan+
+"\nonmessage=e=>{const d=e.data;S.val=d.val;let out=null;try{out=d.jobs.map(j=>clearPlan(j.av,j.C,j.pool))}catch(x){}postMessage({id:d.id,out})}"],{type:"text/javascript"})));
+Q.cancel=()=>{if(Q.cb&&Q.w){Q.w.terminate();Q.w=null}Q.cb=null};
+Q.run=(jobs,cb)=>{
+Q.cancel();
+if(Q.w===false){cb(null);return}
+if(!Q.w){try{Q.w=new Worker(url());
+Q.w.onmessage=e=>{if(e.data.id!=Q.id||!Q.cb)return;const c=Q.cb;Q.cb=null;c(e.data.out)};
+Q.w.onerror=e=>{if(e&&e.preventDefault)e.preventDefault();try{Q.w.terminate()}catch(x){}Q.w=false;const c=Q.cb;Q.cb=null;if(c)c(null)};
+}catch(e){Q.w=false;cb(null);return}}
+Q.cb=cb;Q.w.postMessage({id:++Q.id,jobs,val:S.val.slice()});
+};
+return Q;
+}
+const QW=quickWorker(),QW2=quickWorker(); // main plan, saved-oases table
+
+// ---- Clear oasis
+const CX={sig:null,res:null,busy:null,job:0,w:null,url:null,quick:null};
+const cxSig=()=>JSON.stringify([S.tribe,nArr(),sArr(),cArr(),S.an,S.val,S.base,S.pool,hcK()]);
+function cxWorker(){
+if(CX.w===false)return null;if(CX.w)return CX.w;
+try{
+if(!CX.url)CX.url=URL.createObjectURL(new Blob(["const AN="+JSON.stringify(AN)+",S={val:[]};\n"+battle+"\n"+anCtx+"\n"+exactClear+
+"\nonmessage=e=>{const d=e.data;S.val=d.val;const t=performance.now();let r;try{r=exactClear(d.av,d.C,d.pool,d.K,d.seeds,0,p=>postMessage({id:d.id,p}))}catch(x){r={err:String(x&&x.message||x)}}r.ms=performance.now()-t;r.id=d.id;postMessage(r)}"],{type:"text/javascript"}));
+CX.w=new Worker(CX.url);
+CX.w.onmessage=e=>{const d=e.data;if(d.p)cxProg(d);else cxDone(d)};
+CX.w.onerror=e=>{if(e&&e.preventDefault)e.preventDefault();try{CX.w.terminate()}catch(x){}CX.w=false;const b=CX.busy;if(b){CX.busy=null;cxStart(b.msg)}};
+}catch(e){CX.w=false;return null}
+return CX.w;
+}
+function cxStop(){if(CX.busy&&CX.w){CX.w.terminate();CX.w=null}CX.busy=null}
+function cxStart(msg){
+const sig=cxSig();if(CX.busy&&CX.busy.sig==sig)return;
+cxStop();const id=++CX.job,W=cxWorker();msg.id=id;CX.busy={sig,id,msg,inline:!W,prog:null};
+if(W)W.postMessage(msg);
+else setTimeout(()=>{if(!CX.busy||CX.busy.id!=id)return;const t=performance.now();let r;
+try{r=exactClear(msg.av,msg.C,msg.pool,msg.K,msg.seeds,t+DEEP_IN)}catch(x){r={err:errMsg(x)}}r.ms=performance.now()-t;r.id=id;cxDone(r)},30);
+}
+function cxProg(d){const b=CX.busy;if(!b||d.id!=b.id)return;b.prog=d.p;const el=$("cxStat");if(el&&S.goal=="clear"&&cxSig()==b.sig)el.innerHTML=cxBusyText()}
+function cxDone(r){
+const b=CX.busy;if(!b||r.id!=b.id)return;CX.busy=null;
+r.inline=b.inline;CX.sig=b.sig;CX.res=r;
+if(S.goal=="clear"&&cxSig()==b.sig)show();
+}
+// Stop: keep the best plan reported so far (if any), with what is already proven
+function cxHalt(){
+const b=CX.busy,sig=cxSig(),p=b&&b.prog;cxStop();
+CX.res=p?{s:p.s,plan:p.plan,doneK:p.doneK,battles:p.battles,proven:false,stopped:true}:null;CX.sig=p?sig:null;show();
+}
+function cxQuick(av,C){const sig=cxSig();if(!CX.quick||CX.quick.sig!=sig)CX.quick={sig,P:clearPlan(av,C,S.pool)};return CX.quick.P}
+function cxRun(){const av=nArr(),C=ctx("raid"),K=hcK();if(!av.some(x=>x>0)||!S.an.some(x=>x>0))return;const qr=cxQuick(av,C).res;
+cxStart({av:av.slice(),C,pool:S.pool,K,seeds:qr.cleared&&qr.waves.length<=K?[qr.waves.map(w=>w.n)]:[],val:S.val.slice()});show()}
+function cxBusyText(){
+const b=CX.busy,K=b.msg.K,p=b.prog;
+return"🔎 Deep search: checking every plan with up to "+wvs(K)+"…"+(p&&p.doneK?" Proven so far: plans with up to "+wvs(p.doneK)+".":"")+" <button class='ghost small' data-act=cx-stop>■ Stop</button>";
+}
+// status line under the verdict
+function cxLine(qr,q,src,K,U1){
+const sig=cxSig();
+if(CX.busy&&CX.busy.sig==sig)return"<p class=mu id=cxStat>"+cxBusyText()+"</p>";
+const r=CX.sig==sig&&CX.res;
+if(!r)return"<p class=mu><button class=small data-act=cx-run>🔎 Deep search</button> This is the quick plan. Deep search checks every plan with up to "+wvs(K)+" and replaces it with the proven best.</p>";
+if(r.err)return"<p class=mu>⚠️ The deep search failed ("+esc(r.err)+"), so this is the quick plan.</p>";
+const qs=qr.cleared?qr.loss*U1+qr.units:Infinity,qW=qr.waves.length;
+let d="";
+if(src=="exact"&&q.loss*U1+q.units<qs)d=" ⚡ Better than the quick plan"+(qr.cleared?" ("+(q.loss<qr.loss?"losses "+f(q.loss)+" vs "+f(qr.loss):"same losses, "+f(q.units)+" vs "+f(qr.units)+" units")+")":", which can't clear it")+".";
+if(r.proven){
+if(src=="exact")return"<p class=mu>✅ <b>Proven best</b>: every plan with up to "+wvs(K)+" covered in "+fmtDur(r.ms/1000)+" ("+fBig(r.battles)+" battles simulated, the rest ruled out by bounds)."+d+"</p>";
+if(qr.cleared)return"<p class=mu>✅ Proven: "+(r.plan?"no plan with up to "+wvs(K)+" does better than this "+wvs(qW)+" plan":"no plan with up to "+wvs(K)+" clears this oasis; this plan needs "+wvs(qW))+". Set Max waves to "+qW+" to check plans that long.</p>";
+return"<p class=mu>✅ <b>Proven</b>: no plan with up to "+wvs(K)+" clears this oasis with your troops (checked in "+fmtDur(r.ms/1000)+").</p>";
+}
+return"<p class=mu>"+(r.stopped?"⏹ Stopped":"⏱ Stopped after "+fmtDur(r.ms/1000)+" (your browser blocked the background search)")+": "+
+(src=="exact"?"best plan found so far, not proven":"the quick plan is still the best found")+"."+
+(r.doneK?" No plan with up to "+wvs(r.doneK)+" does better (proven).":"")+d+
+(r.stopped?" <button class='ghost small' data-act=cx-run>🔎 Deep search again</button>":"")+"</p>";
+}
+
 function show(){
 if(S.goal=="clear"){showClear();return}
 const U=TR[S.tribe],av=nArr(),el=$("res");lastBest=null;
-if(!av.some(x=>x>0)||!S.an.some(x=>x>0)){el.innerHTML="<p class=mu>Enter your available troops and the oasis animals above to see the recommended force.</p>";return}
-const C=ctx(),best=optimize(av,S.tol,C,S.meas),r=battle(best,C),all=battle(av,C);
+el.classList.remove("stale");QW.cancel();
+if(!av.some(x=>x>0)||!S.an.some(x=>x>0)){exStop();el.innerHTML="<p class=mu>Enter your available troops and the oasis animals above to see the recommended force.</p>";return}
+const C=ctx(),sig=exSig(),have=EX.sig==sig&&EX.res&&!EX.res.err;
+if(EX.busy&&EX.busy.sig!=sig)exStop(); // inputs changed: the running search is for old ones
+const best=have?EX.res.best||av.map(()=>0):exQuick(av,C);
+const exl=exLine(av,C,best),r=best.some(x=>x>0)?battle(best,C):null,all=battle(av,C);
 const word=S.mode=="raid"?"raid":"attack",o=curO(),d=oDist(o);
 // the comparison with the other attack type is skipped in simple view (not shown there)
 let alt="";
 if(!S.simple){const oM=S.mode=="raid"?"attack":"raid",C2=ctx(oM),b2=optimize(av,S.tol,C2,S.meas),r2=battle(b2,C2);
 alt="<p class=mu>With a "+MODES[oM].toLowerCase()+" instead: "+(r2?"best net "+sg(r2.net)+" sending "+f(sum(b2))+" troops"+(r2.net>(r?r.net:0)?" — <b>more profitable, consider switching</b>":"")+".":"no profitable force.")+"</p>"}
 if(!r){
-el.innerHTML="<div class='verdict bad'>❌ <b>Do not "+word+(o?" "+lab(o):"")+".</b> Every force you could send loses more resources than it gains.</div><div class=full>"+alt+(all?"<p class=mu>If sending everything: gain "+f(all.gain)+", loss "+f(all.lostT)+", net "+sg(all.net)+".</p>":"")+"</div>";
+el.innerHTML="<div class='verdict bad'>❌ <b>Do not "+word+(o?" "+lab(o):"")+".</b> Every force you could send loses more resources than it gains.</div>"+exl+"<div class=full>"+alt+(all?"<p class=mu>If sending everything: gain "+f(all.gain)+", loss "+f(all.lostT)+", net "+sg(all.net)+".</p>":"")+"</div>";
 return;
 }
 lastBest=best.slice();
@@ -686,7 +993,7 @@ lastText=MODES[S.mode]+(o?" "+(o.name||"("+o.x+"|"+o.y+")"):"")+": "+U.map((u,i)
 const aIdx=AN.map((a,i)=>i).filter(i=>S.an[i]);
 el.innerHTML=
 "<div class='verdict "+(r.win?"ok":"bad")+"'>"+(r.win?"✅":"⚠️")+" <b>"+MODES[S.mode]+(o?" "+lab(o):"")+" with "+f(sent)+" troops</b> → net "+sg(r.net)+(tline?"<span class=mu>"+tline+"</span>":"")+"</div>"+
-(r.win?"":"<p class=warn>This force loses the battle; it is recommended only because it still nets a profit.</p>")+
+exl+(r.win?"":"<p class=warn>This force loses the battle; it is recommended only because it still nets a profit.</p>")+
 "<div class=rec><div class=rec-head><div><span class=badge>"+MODES[S.mode]+"</span><b>Troops to send</b></div>"+
 "<div class=row style='margin:0'>"+(oUrl(o)?oLink(o,"Open oasis ↗"):"")+"<button class='ghost small' data-act=copy id=copyBtn>📋 Copy</button><button class='small full' data-act=use>Send to simulator ↓</button></div></div>"+
 bar(H,[["Send",best,"send"],["Dead",r.dead,"dead"],["Home",av.map((a,i)=>a-best[i])]])+
@@ -740,7 +1047,7 @@ if(d.k=="n")nArr()[i]=v;else if(d.k=="m")mArr()[i]=v;else if(d.k=="s"){sArr()[i]
 else if(d.k=="an"){S.an[i]=v;const o=curO();if(o){o.an[i]=v;o.t=Date.now()}}
 else if(d.k=="v")S.val[i]=v;else if(d.k=="c")cArr()[i][+d.j]=v;else if(d.k=="sp")spdArr()[i]=v;
 save();later()});
-document.addEventListener("focusin",e=>{if(e.target.tagName=="INPUT")setTimeout(()=>{try{e.target.select()}catch(x){}},0)});
+document.addEventListener("focusin",e=>{if(e.target.tagName=="INPUT"&&e.target.type!="checkbox")setTimeout(()=>{try{e.target.select()}catch(x){}},0)});
 document.addEventListener("paste",e=>{const t=e.target;if(t.id=="imp"||t.tagName=="INPUT"||t.tagName=="TEXTAREA")return;
 const txt=(e.clipboardData||window.clipboardData).getData("text");if(tryImport(txt,true))e.preventDefault()});
 $("imp").addEventListener("input",()=>{const v=$("imp").value;if(!v.trim())return;if(tryImport(v))$("imp").value=""});
@@ -751,6 +1058,10 @@ if(a=="smithy"){S.smOpen=!S.smOpen;save();applyView();return}
 if(a=="goal"){S.goal=b.dataset.v;save();applyGoal();refresh();return}
 if(a=="pool"){S.pool=b.dataset.v;save();applyGoal();refresh();return}
 if(a=="save-as"){saveAs();return}
+if(a=="ex-run"){exRun();return}
+if(a=="ex-stop"){exStop();show();return}
+if(a=="cx-run"){cxRun();return}
+if(a=="cx-stop"){cxHalt();return}
 if(a=="copy"){const done=()=>{const c=$("copyBtn");if(c){c.textContent="✓ Copied";setTimeout(()=>{const c2=$("copyBtn");if(c2)c2.textContent="📋 Copy"},1500)}};
 try{navigator.clipboard.writeText(lastText).then(done,()=>prompt("Copy:",lastText))}catch(x){prompt("Copy:",lastText)}return}
 if(a=="use"){if(!lastBest)return;S.m[S.tribe]=lastBest.slice();save();build();refresh();$("manual").scrollIntoView({behavior:"smooth",block:"center"});return}
@@ -775,6 +1086,7 @@ $("meas").onchange=()=>{S.meas=$("meas").value;save();later()};
 $("base").oninput=()=>{S.base=Math.max(0,+$("base").value||0);save();later()};
 $("speed").oninput=()=>{S.speed=Math.max(0.1,+$("speed").value||1);save();later()};
 $("msize").oninput=()=>{S.msize=Math.max(1,Math.round(+$("msize").value||401));save();later()};
+$("hcW").oninput=()=>{S.hcW=Math.min(MAXW,Math.max(1,Math.round(+$("hcW").value||2)));save();later()};
 $("tribe").onchange=()=>{S.tribe=$("tribe").value;save();build();refresh()};
 $("reset").onclick=()=>{if(!confirm("Reset all inputs and settings? Saved oases and villages are kept."))return;const k={oases:S.oases,villages:S.villages,vil:S.vil,server:S.server,simple:S.simple,theme:S.theme};S=Object.assign(fresh(),k);save();build();refresh()};
 build();refresh();
