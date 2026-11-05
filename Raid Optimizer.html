@@ -334,7 +334,7 @@ const m=n.slice();m[i]--;m[j]--;m[k]++;const t=sc(m);if(t<s){n=m;s=t;imp=true}}}
 }
 return[n,s];
 }
-}
+
 function optimize(av,tol,C,meas){
 const L=av.length,Z=av.map(()=>0),size=n=>sizeOf(n,C,meas);
 const net=n=>{const r=battle(n,C,1);return r?r.net:0};
