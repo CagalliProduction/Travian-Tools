@@ -9,7 +9,7 @@
 :root {
 --bg: #f4f6f9; --card: #ffffff; --tx: #1a1e23; --mu: #656d76; --bd: #d0d7de;
 --ac: #0969da; --ac-hover: #0349a3; --ac-soft: rgba(9,105,218,0.08);
---ok: #1a7f37; --ok-soft: rgba(26,127,55,0.10); --bad: #cf222e; --bad-soft: rgba(207,34,46,0.08);
+--ok: #1a7f37; --ok-soft: rgba(26,127,55,0.10); --bad: #cf222e; --bad-soft: rgba(207,34,46,0.08); --wa: #9a6700; --wa-soft: rgba(212,167,44,0.14);
 --in: #f6f8fa; --shadow: 0 3px 8px rgba(140, 149, 159, 0.15);
 box-sizing: border-box; color-scheme: light;
 }
@@ -17,14 +17,14 @@ box-sizing: border-box; color-scheme: light;
 :root:not([data-theme="light"]) {
 --bg: #0d1117; --card: #161b22; --tx: #c9d1d9; --mu: #8b949e; --bd: #30363d;
 --ac: #58a6ff; --ac-hover: #79c0ff; --ac-soft: rgba(88,166,255,0.10);
---ok: #3fb950; --ok-soft: rgba(63,185,80,0.12); --bad: #f85149; --bad-soft: rgba(248,81,73,0.10);
+--ok: #3fb950; --ok-soft: rgba(63,185,80,0.12); --bad: #f85149; --bad-soft: rgba(248,81,73,0.10); --wa: #d29922; --wa-soft: rgba(210,153,34,0.14);
 --in: #010409; --shadow: 0 4px 12px rgba(0,0,0,0.4); color-scheme: dark;
 }
 }
 :root[data-theme="dark"] {
 --bg: #0d1117; --card: #161b22; --tx: #c9d1d9; --mu: #8b949e; --bd: #30363d;
 --ac: #58a6ff; --ac-hover: #79c0ff; --ac-soft: rgba(88,166,255,0.10);
---ok: #3fb950; --ok-soft: rgba(63,185,80,0.12); --bad: #f85149; --bad-soft: rgba(248,81,73,0.10);
+--ok: #3fb950; --ok-soft: rgba(63,185,80,0.12); --bad: #f85149; --bad-soft: rgba(248,81,73,0.10); --wa: #d29922; --wa-soft: rgba(210,153,34,0.14);
 --in: #010409; --shadow: 0 4px 12px rgba(0,0,0,0.4); color-scheme: dark;
 }
 *, *::before, *::after { box-sizing: inherit; }
@@ -113,6 +113,14 @@ button.chip-x:hover { color: var(--bad); background: var(--bad-soft); }
 .verdict { padding: 14px 16px; border-radius: 8px; font-size: 16px; margin: 4px 0 14px; border: 1px solid; }
 .verdict.ok { background: var(--ok-soft); border-color: var(--ok); }
 .verdict.bad { background: var(--bad-soft); border-color: var(--bad); }
+.verdict.wa { background: var(--wa-soft); border-color: var(--wa); }
+.wavewarn { padding: 8px 12px; border-radius: 6px; background: var(--wa-soft); border-left: 3px solid var(--wa); margin: 6px 0 10px; font-size: 13.5px; }
+table.wv td, table.wv th { text-align: center; }
+table.wv td:first-child, table.wv th:first-child { text-align: left; }
+table.wv tr.negw td { background: var(--bad-soft); }
+table.wv tr.tot td { font-weight: 700; border-top: 2px solid var(--bd); }
+#impT { min-height: 44px; margin: 0 0 4px; }
+#trMsg { font-size: 13px; margin: 0 0 8px; }
 .verdict .mu { display: block; font-size: 13px; margin-top: 2px; }
 .rec { border: 2px solid var(--ac); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
 .rec-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
@@ -180,6 +188,8 @@ body.simple h1 { font-size: 20px; }
 <section class="card">
 <div class="card-head"><h2>1. My Available Troops</h2>
 <div class="row" style="margin:0"><label>Tribe <select id="tribe"></select></label><button class="ghost small" data-act="clr-troops">Clear</button></div></div>
+<textarea id="impT" placeholder="📋 Open your village in the game, press Ctrl+A then Ctrl+C, and paste here (or anywhere on this page) to fill in the troops at home."></textarea>
+<p id="trMsg"></p>
 <div class="row vrow full">
 <label>🏠 Starting village <select id="vil"></select></label>
 <label>Tournament Square <input type="number" inputmode="numeric" id="ts" min="0" max="20" style="width:60px" placeholder="0"></label>
@@ -622,8 +632,22 @@ const oUrl=o=>o&&o.x!=null&&srv()?srv()+"/position_details.php?x="+o.x+"&y="+o.y
 const oLink=(o,txt)=>{const u=oUrl(o);return u?"<a class=olink href='"+esc(u)+"' target=_blank rel=noopener title='Open this oasis in the game (new tab)'>"+(txt||"↗")+"</a>":""};
 
 /* ================= OASIS IMPORT & STORAGE ================= */
+// game text without the invisible direction marks the game puts around numbers
+const cleanTxt=txt=>String(txt||"").replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g,"").replace(/[\u2212\u2013]/g,"-").replace(/\r/g,"");
+// the village list in the side panel, and the active village (the name just above "Population:")
+function pageVillages(t){
+let villages=[];const vi=t.search(/^\s*Villages\b/mi);
+if(vi>=0){let vs=t.slice(vi);const ve=vs.search(/^\s*Task overview|^\s*Homepage/mi);if(ve>0)vs=vs.slice(0,ve);
+villages=[...vs.matchAll(/^[ \t]*([^\n(]+?)[ \t]*\n[ \t]*\([ \t]*(-?\d+)[ \t]*\|[ \t]*(-?\d+)[ \t]*\)/gm)].map(m=>({name:m[1].trim(),x:+m[2],y:+m[3]}))}
+const p=t.match(/^[ \t]*([^\n]+?)[ \t]*\n[ \t]*Population:/mi);
+return{villages,activeName:p?p[1].trim():null};
+}
+function mergeVillages(o){
+o.villages.forEach(v=>{const id=v.x+"|"+v.y;const e=S.villages.find(z=>z.id==id);if(e)e.name=v.name;else S.villages.push({id,name:v.name,x:v.x,y:v.y,ts:0})});
+return o.activeName?S.villages.find(v=>v.name==o.activeName)||null:null;
+}
 function parseOasis(txt){
-const t=String(txt||"").replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g,"").replace(/[\u2212\u2013]/g,"-").replace(/\r/g,"");
+const t=cleanTxt(txt);
 const c=t.match(/oasis\s*\(\s*(-?\d+)\s*\|\s*(-?\d+)\s*\)/i);
 if(!c)return null;
 const ti=t.search(/^\s*Troops\s*$/mi);if(ti<0)return null;
@@ -632,11 +656,7 @@ const an=AN.map(a=>{const m=sec.match(new RegExp("^\\s*"+a[0]+"\\s+(\\d[\\d.,]*)
 let bonus="";const bi=t.search(/^\s*Bonus\s*$/mi);
 if(bi>=0&&bi<ti){const b=[...t.slice(bi,ti).matchAll(/(\d+)\s*%\s*([A-Za-z]+)/g)].map(m=>m[1]+"% "+m[2]);bonus=b.join(" + ")}
 const d=t.match(/Distance\s*([\d.,]+)\s*field/i);
-let villages=[];const vi=t.search(/^\s*Villages\b/mi);
-if(vi>=0){let vs=t.slice(vi);const ve=vs.search(/^\s*Task overview|^\s*Homepage/mi);if(ve>0)vs=vs.slice(0,ve);
-villages=[...vs.matchAll(/^[ \t]*([^\n(]+?)[ \t]*\n[ \t]*\([ \t]*(-?\d+)[ \t]*\|[ \t]*(-?\d+)[ \t]*\)/gm)].map(m=>({name:m[1].trim(),x:+m[2],y:+m[3]}))}
-const p=t.match(/^[ \t]*([^\n]+?)[ \t]*\n[ \t]*Population:/mi);
-return{x:+c[1],y:+c[2],an,bonus,dist:d?+d[1].replace(",","."):null,villages,activeName:p?p[1].trim():null};
+return Object.assign({x:+c[1],y:+c[2],an,bonus,dist:d?+d[1].replace(",","."):null},pageVillages(t));
 }
 const coords=o=>o.x!=null?"("+o.x+"|"+o.y+")":"";
 const lab=o=>o.name?esc(o.name):coords(o); // short label
@@ -647,12 +667,11 @@ const age=t=>{if(!t)return"";const m=Math.round((Date.now()-t)/60000);return m<1
 const ago=t=>age(t)=="now"?"now":age(t)+" ago";
 const curO=()=>S.oases.find(o=>o.id==S.cur)||null;
 const ab=n=>{const w=n.replace(/[’']s\b/,"").split(" ");return w.length>1?w.map(x=>x[0]).join(""):n.slice(0,4)};
-function setMsg(h,ok){const m=$("impMsg");m.innerHTML=h;m.className=ok?"pos":"neg";clearTimeout(setMsg.t);setMsg.t=setTimeout(()=>{m.innerHTML=""},7000)}
+function setMsg(h,ok,id){const m=$(id||"impMsg");m.innerHTML=h;m.className=ok?"pos":"neg";clearTimeout(setMsg.t);setMsg.t=setTimeout(()=>{m.innerHTML=""},7000)}
 function tryImport(txt,quiet){
 const o=parseOasis(txt);
 if(!o){if(!quiet)setMsg("Couldn't read an oasis from that text. Open the oasis page, press Ctrl+A, Ctrl+C and paste again.",0);return false}
-o.villages.forEach(v=>{const id=v.x+"|"+v.y;const e=S.villages.find(z=>z.id==id);if(e)e.name=v.name;else S.villages.push({id,name:v.name,x:v.x,y:v.y,ts:0})});
-let act=o.activeName?S.villages.find(v=>v.name==o.activeName):null;
+let act=mergeVillages(o);
 if(!act&&o.dist!=null){const c=S.villages.filter(v=>Math.abs(dist(v,o)-o.dist)<0.06);if(c.length==1)act=c[0]}
 if(act)S.vil=act.id;
 const id=o.x+"|"+o.y;let e=S.oases.find(z=>z.id==id);const upd=!!e;
@@ -660,6 +679,38 @@ if(e)S.oases=S.oases.filter(z=>z!==e);else e={id};
 Object.assign(e,{x:o.x,y:o.y,an:o.an.slice(),bonus:o.bonus,dist:o.dist,t:Date.now()});
 S.oases.unshift(e);S.cur=id;S.an=o.an.slice();save();build();refresh();
 setMsg("✓ "+(upd?"Updated ":"Imported ")+lab(e)+": "+anSum(o.an)+(o.bonus?" · "+o.bonus:"")+(act?" · from "+vlab(act):""),1);
+return true;
+}
+
+/* ================= TROOP IMPORT (village page) ================= */
+// The village page lists the troops at home under "Troops:" as "Legionnaires<TAB>57<TAB>Legionnaires" (plural names).
+const nameKey=x=>String(x).toLowerCase().replace(/[^a-z]/g,"");
+const nameForms=n=>{const k=nameKey(n);return[k,k+"s",k+"es",k.replace(/man$/,"men"),k.replace(/y$/,"ies")]};
+function parseTroops(txt){
+const t=cleanTxt(txt),ti=t.search(/^[ \t]*Troops:[ \t]*$/mi);if(ti<0)return null;
+const rows=[];
+for(const line of t.slice(ti).split("\n").slice(1)){
+if(!line.trim())continue;
+const m=line.match(/^[ \t]*([^\t\n]*?[^\d\s][^\t\n]*?)[ \t]*\t[ \t]*(\d[\d.,]*)[ \t]*(?:\t[ \t]*(.*?))?[ \t]*$/);
+if(!m||(m[3]&&nameKey(m[3])!=nameKey(m[1])))break;
+rows.push({name:m[1].trim(),n:+m[2].replace(/[.,]/g,"")});
+}
+return Object.assign({rows},pageVillages(t));
+}
+function tryTroops(txt,quiet){
+const p=parseTroops(txt);
+if(!p){if(!quiet)setMsg("Couldn't find the troop list in that text. Open your village (the resource fields view), press Ctrl+A, Ctrl+C and paste again.",0,"trMsg");return false}
+// the tribe whose unit names match the most rows (the current tribe wins ties)
+let tribe=S.tribe,best=-1;
+for(const tr of [S.tribe,...Object.keys(TR).filter(x=>x!=S.tribe)]){const k=p.rows.filter(r=>TR[tr].some(u=>nameForms(u[0]).includes(nameKey(r.name)))).length;if(k>best){best=k;tribe=tr}}
+if(p.rows.length&&!best){setMsg("Found troops, but none of these units can raid: "+esc(p.rows.map(r=>r.name).join(", "))+".",0,"trMsg");return true}
+const U=TR[tribe],cnt=U.map(u=>p.rows.filter(r=>nameForms(u[0]).includes(nameKey(r.name))).reduce((a,r)=>a+r.n,0));
+const other=p.rows.filter(r=>!U.some(u=>nameForms(u[0]).includes(nameKey(r.name)))).map(r=>r.name);
+const sw=tribe!=S.tribe;S.tribe=tribe;S.n[tribe]=cnt;
+const act=mergeVillages(p);if(act)S.vil=act.id;
+save();build();refresh();
+setMsg("✓ Troops"+(act?" in "+vlab(act):"")+": "+(U.map((u,i)=>cnt[i]?f(cnt[i])+" "+esc(u[0]):"").filter(Boolean).join(", ")||"none at home")+
+(sw?" · tribe set to "+tribe:"")+(other.length?" · not used for raids: "+esc(other.join(", ")):""),1,"trMsg");
 return true;
 }
 // name and save the current animals as an oasis setup
@@ -695,7 +746,7 @@ if(!S.oases.length){el.innerHTML="<p class=mu>No saved oases yet. Paste an oasis
 if(!av.some(x=>x>0)){el.innerHTML="<p class=mu>Enter your available troops in section 1 to compare.</p>";return}
 if(S.goal=="clear"){compareClear(el,av,U,v);return}
 const keep=S.an;let rows;
-try{rows=S.oases.map(o=>{S.an=o.an;const C=ctx(),b=optimize(av,S.tol,C,S.meas),r=battle(b,C);return{o,b,r}})}finally{S.an=keep}
+try{rows=S.oases.map(o=>{S.an=o.an;const C=ctx(),b=polishForce(optimize(av,S.tol,C,S.meas),av,C),r=battle(b,C);return{o,b,r}})}finally{S.an=keep}
 rows.sort((p,q)=>(q.r?q.r.net:-1e9)-(p.r?p.r.net:-1e9));
 el.innerHTML="<p class=mu style='margin-top:0'>Ranked by best net profit with your current troops, tolerance and attack type ("+MODES[S.mode].toLowerCase()+"). "+(v?"Distances from <b>"+vlab(v)+"</b>.":"Set a starting village in section 1 for exact distances.")+" Time is one way, set by the slowest unit sent.</p><div class=w><table><tr><th>Oasis</th><th>Animals</th><th>Dist</th><th>Send</th><th>⏱ One way</th><th>Dead</th><th>Net</th><th></th></tr>"+
 rows.map(({o,b,r})=>{const d=oDist(o),tt=r?travel(b,d):null,lk=oLink(o);
@@ -712,7 +763,8 @@ const ck=JSON.stringify([jobs,S.val]);
 if(!CMPQ||CMPQ.key!=ck){
 if(!el.innerHTML.trim())el.innerHTML="<p class=mu>⏳ Planning…</p>";
 el.classList.add("stale");const real=jobs.filter(Boolean);
-QW2.run(real,out=>{if(!out)out=real.map(j=>clearPlan(j.av,j.C,j.pool));let k=0;CMPQ={key:ck,plans:jobs.map(j=>j?out[k++]:null)};if($("cmpBox").open&&S.goal=="clear"&&!S.simple)compare()});
+QW2.run(real,out=>{if(!out)out=real.map(j=>clearPlan(j.av,j.C,j.pool));
+out=out.map((P,i)=>{const j=real[i],q=P.res;if(!q.cleared||!q.waves.length)return P;const pp=polishPlan(q.waves.map(w=>w.n),j.av,j.C,j.pool);return{res:playPlan(pp.flat(),pp.length,j.av,j.C,j.pool,true)}});let k=0;CMPQ={key:ck,plans:jobs.map(j=>j?out[k++]:null)};if($("cmpBox").open&&S.goal=="clear"&&!S.simple)compare()});
 return}
 el.classList.remove("stale");
 const rows=S.oases.map((o,i)=>({o,P:CMPQ.plans[i]}));
@@ -800,11 +852,22 @@ const qr=P.res,qs=qr.cleared?qr.loss*U1+qr.units:Infinity,have=CX.sig==sig&&CX.r
 if(CX.busy&&CX.busy.sig!=sig)cxStop(); // inputs changed: the running search is for old ones
 let q=qr,src="quick";
 if(have&&CX.res.plan&&CX.res.s<=qs){q=playPlan(CX.res.plan.flat(),CX.res.plan.length,av,C,S.pool,true);src="exact"}
+if(q.cleared&&q.waves.length){const pp=polishPlan(q.waves.map(w=>w.n),av,C,S.pool);q=playPlan(pp.flat(),pp.length,av,C,S.pool,true)}
 const W=q.waves,cxl=cxLine(qr,q,src,K,U1);
 const H=U.map(uh),aIdx=AN.map((a,i)=>i).filter(i=>S.an[i]),inv=train?q.sent:q.bodies,lostN=sum(q.dead),aTot=sum(S.an),aLeft=sum(q.an);
 const agg={gain:0,lostT:0,lost:[0,0,0,0]};
 W.forEach(w=>{agg.gain+=w.r.gain;agg.lostT+=w.r.lostT;w.r.lost.forEach((v,k)=>agg.lost[k]+=v)});agg.net=agg.gain-agg.lostT;
 const tt=W.length?travel(inv,d):null;
+const wr=W.map((w,k)=>({k,gain:w.r.gain,lost:w.r.lostT,net:w.r.gain-w.r.lostT,kill:sum(w.r.killed),dead:sum(w.r.dead)})),negW=wr.filter(x=>x.net<0);
+const wtab=W.length?"<h3>Gain and loss per wave</h3><div class=w><table class=wv><tr><th>Wave</th><th>Animals killed</th><th>Units dead</th><th>Gained</th><th>Lost</th><th>Net</th></tr>"+
+wr.map(x=>"<tr"+(x.net<0?" class=negw":"")+"><td>"+(x.net<0?"⚠️ ":"")+"Wave "+(x.k+1)+"</td><td>"+f(x.kill)+"</td><td>"+f(x.dead)+"</td><td>"+(x.gain?"+"+f(x.gain):"0")+"</td><td>"+(x.lost?"-"+f(x.lost):"0")+"</td><td>"+sg(x.net)+"</td></tr>").join("")+
+(W.length>1?"<tr class=tot><td>Total</td><td>"+f(aTot-aLeft)+"</td><td>"+f(lostN)+"</td><td>"+(agg.gain?"+"+f(agg.gain):"0")+"</td><td>"+(agg.lostT?"-"+f(agg.lostT):"0")+"</td><td>"+sg(agg.net)+"</td></tr>":"")+"</table></div>":"";
+// stopping before the first losing wave: what you would keep, and what would stay in the oasis
+let warn="";
+if(W.length&&agg.net<0)warn="⚠️ <b>Clearing"+(o?" "+lab(o):" this oasis")+" costs more than it gains: net "+sg(agg.net)+"</b> (bounty +"+f(agg.gain)+", troops lost -"+f(agg.lostT)+").";
+if(negW.length){const k=negW[0].k,before=wr.slice(0,k).reduce((a,x)=>a+x.net,0),leftB=k?sum(W[k-1].left):aTot;
+warn+=(warn?"<br>":"⚠️ ")+(negW.length>1?"Waves "+negW.map(x=>x.k+1).join(", ")+" lose":"Wave "+(k+1)+" loses")+" more than "+(negW.length>1?"they gain":"it gains")+
+" ("+negW.map(x=>sg(x.net)).join(", ")+")."+(k?" Stopping after wave "+k+" would keep "+sg(before)+" but leave "+f(leftB)+" animal"+(leftB>1?"s":"")+" in the oasis.":"")}
 const tline=tt?"⏱ "+fmtT(tt.sec)+" one way · "+(train?"all waves leave together, back in "+fmtT(tt.sec*2):W.length+" round trip"+(W.length>1?"s":"")+" ≈ "+fmtT(tt.sec*2*W.length)+" in total")+" · "+fd(d)+" fields · slowest: "+esc(tt.who):"";
 const nm=o?" "+lab(o):"";
 lastBest=W.length?W[0].n.slice():null;
@@ -814,12 +877,12 @@ tr.push([train?"Total sent":"Involved",inv]);tr.push(["Not used",av.map((a,i)=>a
 const ar=[["In oasis",aIdx.map(i=>S.an[i])]];W.forEach((w,k)=>ar.push(["Killed w"+(k+1),aIdx.map(i=>w.r.killed[i]),"kill"]));ar.push(["Left",aIdx.map(i=>q.an[i])]);
 el.innerHTML=
 (q.cleared
-?"<div class='verdict ok'>🧹 <b>Clear"+nm+" in "+W.length+" wave"+(W.length>1?"s":"")+" with "+f(q.units)+" units</b> → "+(q.loss?"losses "+f(q.loss)+" ("+f(lostN)+" unit"+(lostN>1?"s":"")+" dead)":"no losses")+(tline?"<span class=mu>"+tline+"</span>":"")+"</div>"
+?"<div class='verdict "+(agg.net<0?"wa":"ok")+"'>🧹 <b>Clear"+nm+" in "+W.length+" wave"+(W.length>1?"s":"")+" with "+f(q.units)+" units</b> → "+(q.loss?"losses "+f(q.loss)+" ("+f(lostN)+" unit"+(lostN>1?"s":"")+" dead)":"no losses")+" · net "+sg(agg.net)+(tline?"<span class=mu>"+tline+"</span>":"")+"</div>"+(warn?"<div class=wavewarn>"+warn+"</div>":"")
 :"<div class='verdict bad'>❌ <b>Your troops can't clear"+nm+".</b> The best plan found still leaves "+f(aLeft)+" of "+f(aTot)+" animals.</div>")+cxl+
 (W.length?
 "<div class=rec><div class=rec-head><div><span class=badge>Raids</span><b>"+(train?"🚂 Train":"🔁 Vasca")+": troops per wave</b></div>"+
 "<div class=row style='margin:0'>"+(oUrl(o)?oLink(o,"Open oasis ↗"):"")+"<button class='ghost small' data-act=copy id=copyBtn>📋 Copy</button><button class='small full' data-act=use>Wave 1 to simulator ↓</button></div></div>"+
-bar(H,tr)+"</div>"+bar(aIdx.map(ah),ar):"")+
+bar(H,tr)+"</div>"+bar(aIdx.map(ah),ar)+wtab:"")+
 "<div class=full>"+
 "<div class=kpi>"+
 "<div class=hl><b>"+f(q.loss)+"</b>Resources Lost</div>"+
@@ -830,6 +893,35 @@ bar(H,tr)+"</div>"+bar(aIdx.map(ah),ar):"")+
 (W.length?resTable(agg)+"<h3>Waves</h3>"+W.map((w,k)=>"<p class=mu>Wave "+(k+1)+": attack <b>"+f(w.r.A)+"</b> vs defence <b>"+f(w.r.D)+"</b> ("+(w.r.win?"attacker wins":"attacker loses")+") · your loss rate "+(w.r.al*100).toFixed(1)+"% · animal loss rate "+(w.r.dl*100).toFixed(1)+"% (before rounding)</p>").join(""):"")+
 "</div>";
 }
+/* ================= TIE-BREAK ================= */
+// Different forces can give exactly the same result (same losses, same profit, same size). Both modes then choose the same way:
+// the faster force first (its slowest unit sets the trip time), then lower crop upkeep, then lower training value.
+// Units only move between types while the result stays identical, so a proven-best answer stays proven best.
+function tieKey(n,C){const sp=spdArr();let slow=Infinity,up=0,val=0;for(let i=0;i<n.length;i++)if(n[i]>0){slow=Math.min(slow,sp[i]);up+=n[i]*C.up[i];val+=n[i]*C.ct[i]}return[-slow,up,val]}
+const keyLess=(a,b)=>a[0]!=b[0]?a[0]<b[0]:a[1]!=b[1]?a[1]<b[1]:a[2]<b[2];
+function polish(n,lim,same,key){
+let cur=n.slice(),k0=key(cur);
+for(let pass=0,moved=true;moved&&pass<20;pass++){moved=false;
+for(let i=0;i<cur.length;i++)for(let j=0;j<cur.length;j++){if(i==j||!cur[i]||cur[j]>=lim[j])continue;
+for(const amt of new Set([cur[i],1])){const mv=Math.min(amt,lim[j]-cur[j]);if(mv<1)continue;const m=cur.slice();m[i]-=mv;m[j]+=mv;
+if(!same(m))continue;const k=key(m);if(keyLess(k,k0)){cur=m;k0=k;moved=true;break}}}}
+return cur}
+// Max profit: same net and same size
+function polishForce(n,av,C){
+if(!n||!n.some(x=>x>0))return n;const r0=battle(n,C);if(!r0)return n;const s0=sizeOf(n,C,S.meas);
+return polish(n,av,m=>{const r=battle(m,C);return!!r&&r.net===r0.net&&sizeOf(m,C,S.meas)===s0},m=>tieKey(m,C))}
+// Clear oasis: same losses and units and still clears; one wave at a time. plan = list of waves
+let polishMemo={k:null,v:null};
+function polishPlan(plan,av,C,pool){
+const key0=JSON.stringify([plan,av,C.an,C.att,C.ct,pool,spdArr()]);if(polishMemo.k==key0)return polishMemo.v;
+const play=pl=>playPlan(pl.flat(),pl.length,av,C,pool,false),r0=play(plan);let cur=plan.map(w=>w.slice());
+if(r0&&r0.cleared)for(let k=0;k<cur.length;k++){
+const lim=av.map((a,t)=>pool=="train"?a-cur.reduce((x,w,kk)=>kk==k?x:x+w[t],0):a);
+const withK=m=>{const pl=cur.slice();pl[k]=m;return pl};
+cur[k]=polish(cur[k],lim,m=>{const r=play(withK(m));return!!r&&r.cleared&&r.loss===r0.loss&&r.units===r0.units},
+m=>tieKey(av.map((_,t)=>withK(m).reduce((x,w)=>x+w[t],0)),C))}
+polishMemo={k:key0,v:cur};return cur}
+
 /* ================= DEEP SEARCH (exact, on demand) ================= */
 // Editing only recomputes the instant quick answer. "🔎 Deep search" runs the exact search (exactProfit / exactClear) in a background
 // worker built from this page's own code, so the page stays a single file and responsive; the proven answer then replaces the quick one.
@@ -975,7 +1067,7 @@ el.classList.remove("stale");QW.cancel();
 if(!av.some(x=>x>0)||!S.an.some(x=>x>0)){exStop();el.innerHTML="<p class=mu>Enter your available troops and the oasis animals above to see the recommended force.</p>";return}
 const C=ctx(),sig=exSig(),have=EX.sig==sig&&EX.res&&!EX.res.err;
 if(EX.busy&&EX.busy.sig!=sig)exStop(); // inputs changed: the running search is for old ones
-const best=have?EX.res.best||av.map(()=>0):exQuick(av,C);
+const best=polishForce(have?EX.res.best||av.map(()=>0):exQuick(av,C),av,C);
 const exl=exLine(av,C,best),r=best.some(x=>x>0)?battle(best,C):null,all=battle(av,C);
 const word=S.mode=="raid"?"raid":"attack",o=curO(),d=oDist(o);
 // the comparison with the other attack type is skipped in simple view (not shown there)
@@ -1048,9 +1140,10 @@ else if(d.k=="an"){S.an[i]=v;const o=curO();if(o){o.an[i]=v;o.t=Date.now()}}
 else if(d.k=="v")S.val[i]=v;else if(d.k=="c")cArr()[i][+d.j]=v;else if(d.k=="sp")spdArr()[i]=v;
 save();later()});
 document.addEventListener("focusin",e=>{if(e.target.tagName=="INPUT"&&e.target.type!="checkbox")setTimeout(()=>{try{e.target.select()}catch(x){}},0)});
-document.addEventListener("paste",e=>{const t=e.target;if(t.id=="imp"||t.tagName=="INPUT"||t.tagName=="TEXTAREA")return;
-const txt=(e.clipboardData||window.clipboardData).getData("text");if(tryImport(txt,true))e.preventDefault()});
-$("imp").addEventListener("input",()=>{const v=$("imp").value;if(!v.trim())return;if(tryImport(v))$("imp").value=""});
+document.addEventListener("paste",e=>{const t=e.target;if(t.id=="imp"||t.id=="impT"||t.tagName=="INPUT"||t.tagName=="TEXTAREA")return;
+const txt=(e.clipboardData||window.clipboardData).getData("text");if(tryImport(txt,true)||tryTroops(txt,true))e.preventDefault()});
+$("imp").addEventListener("input",()=>{const v=$("imp").value;if(!v.trim())return;if(tryImport(v,!!parseTroops(v))||tryTroops(v,true))$("imp").value=""});
+$("impT").addEventListener("input",()=>{const v=$("impT").value;if(!v.trim())return;if(tryTroops(v,!!parseOasis(v))||tryImport(v,true))$("impT").value=""});
 document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;
 if(a=="theme"){S.theme={auto:"light",light:"dark",dark:"auto"}[S.theme||"auto"];save();applyTheme();return}
 if(a=="simple"){S.simple=!S.simple;save();applyView();refresh();return}
