@@ -238,6 +238,9 @@ body.simple h1 { font-size: 20px; }
 <div class="seg clr" id="poolSw"><button data-act="pool" data-v="train" title="All waves leave together; each unit goes in one wave only">🚂 Train</button><button data-act="pool" data-v="vasca" title="Waves go one after another; survivors come back and go again">🔁 Vasca</button></div>
 <label class="clr">Max waves <input type="number" inputmode="numeric" id="hcW" min="1" max="12" style="width:60px"></label>
 </div>
+<div class="row"><span class="mu">🐎 Troops to send</span>
+<div class="seg" id="cavSw"><button data-act="cav" data-v="all">All</button><button data-act="cav" data-v="cav" title="Faster: less time for animals to spawn before the hit">Cavalry only</button></div>
+</div>
 <div class="row" id="safeRow"><span class="mu">🛡️ Animals spawning during the trip</span>
 <div class="seg" id="safeSw"><button data-act="safe" data-v="off">Off</button><button data-act="safe" data-v="on">On</button></div>
 <label class="spx">Oasis type <select id="otype"><option value="auto">Auto</option><option value="iron">Iron</option><option value="ironcrop">Iron + Crop</option><option value="clay">Clay</option><option value="claycrop">Clay + Crop</option><option value="wood">Wood</option><option value="woodcrop">Wood + Crop</option><option value="crop">Crop</option></select></label>
@@ -302,12 +305,14 @@ const TITLE=document.title;
 const KEY="travian-oasis-opt-v2",$=id=>document.getElementById(id),f=x=>Math.round(x).toLocaleString();
 const esc=s=>String(s).replace(/[&<>"']/g,c=>"&#"+c.charCodeAt(0)+";");
 const sg=v=>"<span class="+(v>=0?"pos":"neg")+">"+(v>=0?"+":"-")+f(Math.abs(v))+"</span>";
-const fresh=()=>({safe:"off",otype:"auto",spAdd:null,tribe:"Teutons",m:{},n:{},s:{},cost:{},spd:{},an:AN.map(()=>0),val:AN.map(a=>a[3]),tol:2,mode:"raid",meas:"units",goal:"clear",pool:"train",base:10,theme:"auto",oases:[],cur:null,villages:[],vil:null,speed:1,msize:401,server:"https://ts6.x1.international.travian.com",simple:false,smOpen:false,hcW:2});
+const fresh=()=>({cavOnly:false,safe:"off",otype:"auto",spAdd:null,tribe:"Teutons",m:{},n:{},s:{},cost:{},spd:{},an:AN.map(()=>0),val:AN.map(a=>a[3]),tol:2,mode:"raid",meas:"units",goal:"clear",pool:"train",base:10,theme:"auto",oases:[],cur:null,villages:[],vil:null,speed:1,msize:401,server:"https://ts6.x1.international.travian.com",simple:false,smOpen:false,hcW:2});
 let S=fresh();try{S=Object.assign(S,JSON.parse(localStorage.getItem(KEY))||{})}catch(e){}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const curMode=()=>S.goal=="clear"?"raid":S.mode; // clear-oasis mode always raids
 const get=(o,d)=>o[S.tribe]||(o[S.tribe]=d());
-const nArr=()=>get(S.n,()=>TR[S.tribe].map(()=>0)),sArr=()=>get(S.s,()=>TR[S.tribe].map(()=>0)),cArr=()=>get(S.cost,()=>TR[S.tribe].map(u=>u[4].slice()));
+const nArr=()=>get(S.n,()=>TR[S.tribe].map(()=>0)),
+// the troops the recommendation may use: all, or cavalry only (faster, so less time for animals to spawn)
+avArr=()=>{const n=nArr();return S.cavOnly?n.map((v,i)=>TR[S.tribe][i][3]?v:0):n.slice()},sArr=()=>get(S.s,()=>TR[S.tribe].map(()=>0)),cArr=()=>get(S.cost,()=>TR[S.tribe].map(u=>u[4].slice()));
 const mArr=()=>get(S.m,()=>TR[S.tribe].map(()=>0)),spdArr=()=>get(S.spd,()=>TR[S.tribe].map(u=>u[5]));
 const upg=(s,up,l)=>s+(s+300*up/7)*(Math.pow(1.007,l)-1); // Smithy formula
 
@@ -765,7 +770,7 @@ $("cmpN").textContent=S.oases.length;
 function compare(){
 const box=$("cmpBox"),el=$("cmp");if(!box.open||S.simple)return;
 el.classList.remove("stale");
-const av=nArr(),U=TR[S.tribe],v=curV();
+const av=avArr(),U=TR[S.tribe],v=curV();
 if(!S.oases.length){el.innerHTML="<p class=mu>No saved oases yet. Paste an oasis page above to save one.</p>";return}
 if(!av.some(x=>x>0)){el.innerHTML="<p class=mu>Enter your available troops in section 1 to compare.</p>";return}
 if(S.goal=="clear"){compareClear(el,av,U,v);return}
@@ -833,6 +838,7 @@ document.body.classList.toggle("goal-clear",S.goal=="clear");
 document.body.classList.toggle("goal-profit",S.goal!="clear");
 document.querySelectorAll("#goalSw button").forEach(b=>b.classList.toggle("on",b.dataset.v==(S.goal=="clear"?"clear":"profit")));
 document.querySelectorAll("#poolSw button").forEach(b=>b.classList.toggle("on",b.dataset.v==S.pool));
+document.querySelectorAll("#cavSw button").forEach(b=>b.classList.toggle("on",b.dataset.v==(S.cavOnly?"cav":"all")));
 document.querySelectorAll("#safeSw button").forEach(b=>b.classList.toggle("on",b.dataset.v==(safeOn()?"on":"off")));
 document.querySelectorAll(".spx").forEach(e=>e.style.display=safeOn()?"":"none");
 }
@@ -863,9 +869,9 @@ rows.push("<tr"+(me?" style='font-weight:700;background:var(--ac-soft)'":"")+"><
 return "<div class=w><table><tr><th>Scenario</th><th>Troops</th><th>Attack</th><th>Win</th><th>Killed</th><th>Lost</th><th>Gained</th><th>Net</th></tr>"+rows.join("")+"</table></div>";
 }
 function showClear(){
-const U=TR[S.tribe],av=nArr(),el=$("res");lastBest=null;
-if(!av.some(x=>x>0)||!S.an.some(x=>x>0)){cxStop();QW.cancel();el.classList.remove("stale");el.innerHTML="<p class=mu>Enter your available troops and the oasis animals above to see the clear-out plan.</p>";return}
-const C0=ctx("raid",recAn()),sig0=cxSig(),added=!!spApplied(),incl=added?" <span class=added>🛡️ incl. "+anList(spApplied())+"</span>":"",spBox=spawnPanel(S.pool=="vasca"?2*hcK()-1:1);
+const U=TR[S.tribe],av=avArr(),el=$("res");lastBest=null;
+if(!av.some(x=>x>0)||!S.an.some(x=>x>0)){cxStop();QW.cancel();el.classList.remove("stale");el.innerHTML=(S.cavOnly&&nArr().some(x=>x>0)&&S.an.some(x=>x>0)?"<p class=mu>🐎 No cavalry available: set Troops to All.</p>":"<p class=mu>Enter your available troops and the oasis animals above to see the clear-out plan.</p>");return}
+const C0=ctx("raid",recAn()),sig0=cxSig(),added=!!spApplied(),incl=(S.cavOnly?" <span class=added>🐎 cavalry only</span>":"")+(added?" <span class=added>🛡️ incl. "+anList(spApplied())+"</span>":""),spBox=spawnPanel(S.pool=="vasca"?2*hcK()-1:1);
 if(!CX.quick||CX.quick.sig!=sig0){
 if(CX.busy&&CX.busy.sig!=sig0)cxStop();
 if(!el.innerHTML.trim())el.innerHTML=spBox+"<p class=mu>⏳ Planning…</p>";
@@ -1024,7 +1030,7 @@ function spawnPanel(waves){
 lastSpawn=null;if(!safeOn()||!S.an.some(x=>x>0))return"";
 const o=curO(),ty=oasisType(o,S.an);
 if(!ty)return"<div class=spw>🛡️ Oasis type unknown: choose it next to the switch.</div>";
-const w=spawnWindow(nArr(),o,oDist(o),waves),e=spawnEst(S.an,ty.t,w.plan);e.type=ty.t;e.min=w.plan;lastSpawn=e;
+const w=spawnWindow(avArr(),o,oDist(o),waves),e=spawnEst(S.an,ty.t,w.plan);e.type=ty.t;e.min=w.plan;lastSpawn=e;
 const A=a=>AN[a][0]+"s",ev=e.ev,p=e.j>=0?ev.p:0,ps=Math.round(p*100),cur=e.j>=0?A(e.order[e.j]):"",add=spApplied(),src=add&&S.spAdd.src;
 // details only on hover: why this %, and how the time is made up
 const tipP=ev.n>1?S.an[e.order[ev.j]]+" "+AN[e.order[ev.j]][0]+" after "+S.an[e.order[ev.i]]+" "+AN[e.order[ev.i]][0]+": a finished round would have about "+Math.round(ev.E):ev.n==1?"Only one animal type":"",
@@ -1056,7 +1062,7 @@ const errMsg=x=>String(x&&x.message||x);
 
 // ---- Max profit
 const EX={sig:null,res:null,busy:null,job:0,w:null,url:null,quick:null};
-const exSig=()=>JSON.stringify([S.tribe,nArr(),sArr(),cArr(),recAn(),S.val,S.base,S.mode,S.tol,S.meas]);
+const exSig=()=>JSON.stringify([S.tribe,avArr(),sArr(),cArr(),recAn(),S.val,S.base,S.mode,S.tol,S.meas]);
 function exWorker(){
 if(EX.w===false)return null;if(EX.w)return EX.w;
 try{
@@ -1083,7 +1089,7 @@ if(S.goal!="clear"&&exSig()==b.sig)show();
 }
 // quick estimate for the current inputs (cached, so redraws don't recompute it)
 function exQuick(av,C){const sig=exSig();if(!EX.quick||EX.quick.sig!=sig)EX.quick={sig,best:optimize(av,S.tol,C,S.meas)};return EX.quick.best}
-function exRun(){const av=nArr(),C=ctx(S.mode,recAn());if(!av.some(x=>x>0)||!S.an.some(x=>x>0))return;const q=exQuick(av,C);
+function exRun(){const av=avArr(),C=ctx(S.mode,recAn());if(!av.some(x=>x>0)||!S.an.some(x=>x>0))return;const q=exQuick(av,C);
 exStart({av:av.slice(),C,tol:S.tol,meas:S.meas,seeds:[q.slice(),av.slice()],val:S.val.slice()});show()}
 // status line under the verdict
 function exLine(av,C,best){
@@ -1125,7 +1131,7 @@ const QW=quickWorker(),QW2=quickWorker(); // main plan, saved-oases table
 
 // ---- Clear oasis
 const CX={sig:null,res:null,busy:null,job:0,w:null,url:null,quick:null};
-const cxSig=()=>JSON.stringify([S.tribe,nArr(),sArr(),cArr(),recAn(),S.val,S.base,S.pool,hcK()]);
+const cxSig=()=>JSON.stringify([S.tribe,avArr(),sArr(),cArr(),recAn(),S.val,S.base,S.pool,hcK()]);
 function cxWorker(){
 if(CX.w===false)return null;if(CX.w)return CX.w;
 try{
@@ -1157,7 +1163,7 @@ const b=CX.busy,sig=cxSig(),p=b&&b.prog;cxStop();
 CX.res=p?{s:p.s,plan:p.plan,doneK:p.doneK,battles:p.battles,proven:false,stopped:true}:null;CX.sig=p?sig:null;show();
 }
 function cxQuick(av,C){const sig=cxSig();if(!CX.quick||CX.quick.sig!=sig)CX.quick={sig,P:quickClear(av,C,S.pool)};return CX.quick.P}
-function cxRun(){const av=nArr(),C=ctx("raid",recAn()),K=hcK();if(!av.some(x=>x>0)||!S.an.some(x=>x>0))return;const qr=cxQuick(av,C).res;
+function cxRun(){const av=avArr(),C=ctx("raid",recAn()),K=hcK();if(!av.some(x=>x>0)||!S.an.some(x=>x>0))return;const qr=cxQuick(av,C).res;
 cxStart({av:av.slice(),C,pool:S.pool,K,seeds:qr.cleared&&qr.waves.length<=K?[qr.waves.map(w=>w.n)]:[],val:S.val.slice()});show()}
 function cxBusyText(){
 const b=CX.busy,K=b.msg.K,p=b.prog;
@@ -1186,10 +1192,10 @@ return"<p class=mu>"+(r.stopped?"⏹ Stopped":"⏱ Stopped after "+fmtDur(r.ms/1
 
 function show(){
 if(S.goal=="clear"){showClear();return}
-const U=TR[S.tribe],av=nArr(),el=$("res");lastBest=null;
+const U=TR[S.tribe],av=avArr(),el=$("res");lastBest=null;
 el.classList.remove("stale");QW.cancel();
-if(!av.some(x=>x>0)||!S.an.some(x=>x>0)){exStop();el.innerHTML="<p class=mu>Enter your available troops and the oasis animals above to see the recommended force.</p>";return}
-const C=ctx(S.mode,recAn()),sig=exSig(),have=EX.sig==sig&&EX.res&&!EX.res.err,added=!!spApplied(),incl=added?" <span class=added>🛡️ incl. "+anList(spApplied())+"</span>":"",spBox=spawnPanel(1);
+if(!av.some(x=>x>0)||!S.an.some(x=>x>0)){exStop();el.innerHTML=(S.cavOnly&&nArr().some(x=>x>0)&&S.an.some(x=>x>0)?"<p class=mu>🐎 No cavalry available: set Troops to All.</p>":"<p class=mu>Enter your available troops and the oasis animals above to see the recommended force.</p>");return}
+const C=ctx(S.mode,recAn()),sig=exSig(),have=EX.sig==sig&&EX.res&&!EX.res.err,added=!!spApplied(),incl=(S.cavOnly?" <span class=added>🐎 cavalry only</span>":"")+(added?" <span class=added>🛡️ incl. "+anList(spApplied())+"</span>":""),spBox=spawnPanel(1);
 if(EX.busy&&EX.busy.sig!=sig)exStop(); // inputs changed: the running search is for old ones
 const best=polishForce(have?EX.res.best||av.map(()=>0):exQuick(av,C),av,C);
 const exl=exLine(av,C,best),r=best.some(x=>x>0)?battle(best,C):null,all=battle(av,C);
@@ -1275,6 +1281,7 @@ if(a=="smithy"){S.smOpen=!S.smOpen;save();applyView();return}
 if(a=="goal"){S.goal=b.dataset.v;save();applyGoal();refresh();return}
 if(a=="pool"){S.pool=b.dataset.v;save();applyGoal();refresh();return}
 if(a=="safe"){S.safe=b.dataset.v;save();applyGoal();refresh();return}
+if(a=="cav"){S.cavOnly=b.dataset.v=="cav";save();applyGoal();refresh();return}
 if(a=="spadd"&&lastSpawn){const v=lastSpawn[b.dataset.v];if(v){S.spAdd={k:spKey(),add:v.slice(),src:b.dataset.v,delay:0};save();refresh()}return}
 if(a=="spclear"){S.spAdd=null;save();refresh();return}
 if(a=="save-as"){saveAs();return}
