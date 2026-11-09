@@ -273,6 +273,7 @@ body.simple h1 { font-size: 20px; }
 <div class="row">
 <label>Oasis base defence <input type="number" inputmode="numeric" id="base" min="0" style="width:60px"></label>
 <label>Troop speed × <input type="number" inputmode="decimal" id="speed" min="0.1" step="any" style="width:60px"></label>
+<label title="Alliance bonus: raises your troops' attack, on top of the Smithy">Metallurgy (alliance) <select id="met"><option value="0">0% (none)</option><option value="2">2% (level 1)</option><option value="4">4% (level 2)</option><option value="6">6% (level 3)</option><option value="8">8% (level 4)</option><option value="10">10% (level 5)</option></select></label>
 <label>Map size <input type="number" inputmode="numeric" id="msize" min="1" style="width:70px"></label>
 </div>
 <p class="mu">Game server is used for the ↗ links that open an oasis in the game (any address from your server works; only the server part is used). Base defence is added to the animals' defence (10 is the village value; check once against the in-game simulator with defender Nature and set 0 if it doesn't match). Troop speed × is your server's troop speed multiplier. Map size is used for wrap-around distances (standard maps are 401 × 401).</p>
@@ -305,7 +306,7 @@ const TITLE=document.title;
 const KEY="travian-oasis-opt-v2",$=id=>document.getElementById(id),f=x=>Math.round(x).toLocaleString();
 const esc=s=>String(s).replace(/[&<>"']/g,c=>"&#"+c.charCodeAt(0)+";");
 const sg=v=>"<span class="+(v>=0?"pos":"neg")+">"+(v>=0?"+":"-")+f(Math.abs(v))+"</span>";
-const fresh=()=>({cavOnly:false,safe:"off",otype:"auto",spAdd:null,tribe:"Teutons",m:{},n:{},s:{},cost:{},spd:{},an:AN.map(()=>0),val:AN.map(a=>a[3]),tol:2,mode:"raid",meas:"units",goal:"clear",pool:"train",base:10,theme:"auto",oases:[],cur:null,villages:[],vil:null,speed:1,msize:401,server:"https://ts6.x1.international.travian.com",simple:false,smOpen:false,hcW:2});
+const fresh=()=>({met:2,cavOnly:false,safe:"off",otype:"auto",spAdd:null,tribe:"Teutons",m:{},n:{},s:{},cost:{},spd:{},an:AN.map(()=>0),val:AN.map(a=>a[3]),tol:2,mode:"raid",meas:"units",goal:"clear",pool:"train",base:10,theme:"auto",oases:[],cur:null,villages:[],vil:null,speed:1,msize:401,server:"https://ts6.x1.international.travian.com",simple:false,smOpen:false,hcW:2});
 let S=fresh();try{S=Object.assign(S,JSON.parse(localStorage.getItem(KEY))||{})}catch(e){}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const curMode=()=>S.goal=="clear"?"raid":S.mode; // clear-oasis mode always raids
@@ -320,7 +321,8 @@ const upg=(s,up,l)=>s+(s+300*up/7)*(Math.pow(1.007,l)-1); // Smithy formula
 function ctx(mode,an){
 an=an||S.an;const U=TR[S.tribe],sm=sArr(),cs=cArr();let di=0,dc=0,dN=0;
 AN.forEach((a,i)=>{di+=an[i]*a[1];dc+=an[i]*a[2];dN+=an[i]});
-return{U,mode:mode||S.mode,an,att:U.map((u,i)=>upg(u[1],u[2],sm[i])),cav:U.map(u=>u[3]),up:U.map(u=>u[2]),
+const mt=1+(+S.met||0)/100; // alliance Metallurgy bonus, on top of the Smithy
+return{U,mode:mode||S.mode,an,att:U.map((u,i)=>upg(u[1],u[2],sm[i])*mt),cav:U.map(u=>u[3]),up:U.map(u=>u[2]),
 cs,ct:cs.map(c=>c[0]+c[1]+c[2]+c[3]),di,dc,dN,base:+S.base||0};
 }
 // same context against a different set of animals (the ones left after earlier waves)
@@ -844,7 +846,7 @@ document.querySelectorAll(".spx").forEach(e=>e.style.display=safeOn()?"":"none")
 }
 function smUI(){const set=sArr().some(x=>x>0);$("smBtn").textContent=(S.smOpen?"▴ Hide Smithy levels":"🔨 Smithy levels ▾")+(set?" · set":"")}
 function build(){
-$("tribe").value=S.tribe;$("tol").value=S.tol;$("mode").value=S.mode;$("meas").value=S.meas;$("base").value=S.base;$("speed").value=S.speed;$("msize").value=S.msize;$("server").value=S.server||"";
+$("tribe").value=S.tribe;$("tol").value=S.tol;$("mode").value=S.mode;$("meas").value=S.meas;$("base").value=S.base;$("speed").value=S.speed;$("met").value=String(+S.met||0);$("msize").value=S.msize;$("server").value=S.server||"";
 $("hcW").value=hcK();$("otype").value=S.otype||"auto";
 const U=TR[S.tribe],n=nArr(),s=sArr(),c=cArr(),m=mArr(),sp=spdArr(),H=U.map(uh);
 $("troops").innerHTML="<div class=w><table class=bar><tr><th></th>"+H.join("")+"</tr>"+
@@ -1062,7 +1064,7 @@ const errMsg=x=>String(x&&x.message||x);
 
 // ---- Max profit
 const EX={sig:null,res:null,busy:null,job:0,w:null,url:null,quick:null};
-const exSig=()=>JSON.stringify([S.tribe,avArr(),sArr(),cArr(),recAn(),S.val,S.base,S.mode,S.tol,S.meas]);
+const exSig=()=>JSON.stringify([S.tribe,avArr(),sArr(),+S.met||0,cArr(),recAn(),S.val,S.base,S.mode,S.tol,S.meas]);
 function exWorker(){
 if(EX.w===false)return null;if(EX.w)return EX.w;
 try{
@@ -1131,7 +1133,7 @@ const QW=quickWorker(),QW2=quickWorker(); // main plan, saved-oases table
 
 // ---- Clear oasis
 const CX={sig:null,res:null,busy:null,job:0,w:null,url:null,quick:null};
-const cxSig=()=>JSON.stringify([S.tribe,avArr(),sArr(),cArr(),recAn(),S.val,S.base,S.pool,hcK()]);
+const cxSig=()=>JSON.stringify([S.tribe,avArr(),sArr(),+S.met||0,cArr(),recAn(),S.val,S.base,S.pool,hcK()]);
 function cxWorker(){
 if(CX.w===false)return null;if(CX.w)return CX.w;
 try{
@@ -1311,6 +1313,7 @@ $("tol").oninput=()=>{S.tol=Math.min(50,Math.max(0,+$("tol").value||0));save();l
 $("mode").onchange=()=>{S.mode=$("mode").value;save();later()};
 $("meas").onchange=()=>{S.meas=$("meas").value;save();later()};
 $("base").oninput=()=>{S.base=Math.max(0,+$("base").value||0);save();later()};
+$("met").onchange=()=>{S.met=+$("met").value||0;save();refresh()};
 $("speed").oninput=()=>{S.speed=Math.max(0.1,+$("speed").value||1);save();later()};
 $("msize").oninput=()=>{S.msize=Math.max(1,Math.round(+$("msize").value||401));save();later()};
 // the extra animals added to the plan: edited in the result, applied when the field is left
